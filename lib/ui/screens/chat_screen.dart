@@ -11,6 +11,7 @@ import '../../providers/call_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/socket_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/chat_background.dart';
 import '../widgets/custom_avatar.dart';
 import '../widgets/group_info_sheet.dart';
 import '../widgets/message_bubble.dart';
@@ -55,8 +56,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _scrollToBottom() {
     if (_scrollCtrl.hasClients) {
       _scrollCtrl.animateTo(
-        _scrollCtrl.position.maxScrollExtent + 80,
-        duration: const Duration(milliseconds: 300),
+        0.0,
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     }
@@ -286,8 +287,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
+      body: ChatBackground(
+        child: Column(
+          children: [
           // Messages Feed
           Expanded(
             child: chat.isLoadingMessages
@@ -321,10 +323,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       )
                     : ListView.builder(
                         controller: _scrollCtrl,
+                        reverse: true,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
-                          final msg = messages[index];
+                          final msg = messages[messages.length - 1 - index];
                           final isMe = msg.senderId == currentUserId;
                           return MessageBubble(
                             message: msg,
@@ -505,7 +508,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -116,14 +116,28 @@ class SocketService {
 
     // Call Listeners
     _socket!.on('incoming_call', (data) => _incomingCallController.add(data));
+    _socket!.on('call_incoming', (data) => _incomingCallController.add(data));
+    _socket!.on('call_user', (data) => _incomingCallController.add(data));
+    _socket!.on('call:incoming', (data) => _incomingCallController.add(data));
     _socket!.on('call_offer', (data) => _callOfferController.add(data));
+    _socket!.on('call:offer', (data) => _callOfferController.add(data));
+    _socket!.on('offer', (data) => _callOfferController.add(data));
     _socket!.on('call_answered', (data) => _callAnsweredController.add(data));
+    _socket!.on('call:answered', (data) => _callAnsweredController.add(data));
+    _socket!.on('call_answer', (data) => _callAnsweredController.add(data));
+    _socket!.on('answer_call', (data) => _callAnsweredController.add(data));
+    _socket!.on('call_accepted', (data) => _callAnsweredController.add(data));
     _socket!.on('call_rejected', (data) => _callRejectedController.add(data));
+    _socket!.on('call:rejected', (data) => _callRejectedController.add(data));
     _socket!.on('ice_candidate', (data) => _iceCandidateController.add(data));
+    _socket!.on('call:ice_candidate', (data) => _iceCandidateController.add(data));
+    _socket!.on('ice-candidate', (data) => _iceCandidateController.add(data));
+    _socket!.on('candidate', (data) => _iceCandidateController.add(data));
     _socket!.on('user_joined_call', (data) => _userJoinedCallController.add(data));
     _socket!.on('user_left_call', (data) => _userLeftCallController.add(data));
     _socket!.on('group_call_status', (data) => _groupCallStatusController.add(data));
     _socket!.on('call_ended', (data) => _callEndedController.add(data));
+    _socket!.on('call:ended', (data) => _callEndedController.add(data));
   }
 
   void _handleOnlineUsers(dynamic data) {
@@ -179,26 +193,42 @@ class SocketService {
 
   void emitCallUser(Map<String, dynamic> payload) {
     _socket?.emit('call_user', payload);
+    _socket?.emit('call:incoming', payload);
+    _socket?.emit('incoming_call', payload);
   }
 
   void emitAnswerCall(Map<String, dynamic> payload) {
     _socket?.emit('answer_call', payload);
+    _socket?.emit('call_answered', payload);
+    _socket?.emit('call:answered', payload);
+    _socket?.emit('call_answer', payload);
+    _socket?.emit('accept_call', payload);
+    _socket?.emit('call_accepted', payload);
   }
 
   void emitRejectCall(Map<String, dynamic> payload) {
     _socket?.emit('reject_call', payload);
+    _socket?.emit('call_rejected', payload);
+    _socket?.emit('call:rejected', payload);
   }
 
   void emitEndCall(Map<String, dynamic> payload) {
     _socket?.emit('end_call', payload);
+    _socket?.emit('call_ended', payload);
+    _socket?.emit('call:ended', payload);
   }
 
   void emitIceCandidate(Map<String, dynamic> payload) {
     _socket?.emit('ice_candidate', payload);
+    _socket?.emit('call:ice_candidate', payload);
+    _socket?.emit('ice-candidate', payload);
+    _socket?.emit('candidate', payload);
+    _socket?.emit('call:candidate', payload);
   }
 
   void emitJoinCall(Map<String, dynamic> payload) {
     _socket?.emit('join_call', payload);
+    _socket?.emit('call:join', payload);
   }
 
   void emitLeaveCall(String roomId) {

@@ -13,7 +13,7 @@ class AuthProvider extends ChangeNotifier {
 
   UserModel? _user;
   String? _token;
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _isInitialized = false;
   String? _errorMessage;
 
@@ -25,9 +25,6 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<void> initialize() async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
       final savedToken = await _apiService.loadSavedToken();
       if (savedToken != null && savedToken.isNotEmpty) {

@@ -46,8 +46,12 @@ class MessageBubble extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.contain,
+                  errorListener: (_) {},
                   placeholder: (c, u) => const Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                  errorWidget: (c, u, e) => const Center(
+                    child: Icon(Icons.broken_image_rounded, color: AppColors.textMuted, size: 48),
                   ),
                 ),
               ),
@@ -133,11 +137,11 @@ class MessageBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.block_rounded, size: 14, color: AppColors.textMuted),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'This message was deleted',
                   style: TextStyle(
@@ -151,6 +155,10 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       );
+    }
+
+    if (_isCallMessage) {
+      return _buildCallBubble(context);
     }
 
     return Padding(
@@ -277,11 +285,19 @@ class MessageBubble extends StatelessWidget {
                                 child: CachedNetworkImage(
                                   imageUrl: fullUrl,
                                   fit: BoxFit.cover,
+                                  errorListener: (_) {},
                                   placeholder: (c, u) => Container(
                                     height: 140,
                                     color: AppColors.surface,
                                     child: const Center(
                                       child: CircularProgressIndicator(color: AppColors.primary),
+                                    ),
+                                  ),
+                                  errorWidget: (c, u, e) => Container(
+                                    height: 100,
+                                    color: AppColors.surface,
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image_rounded, color: AppColors.textMuted, size: 36),
                                     ),
                                   ),
                                 ),
@@ -390,6 +406,206 @@ class MessageBubble extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool get _isCallMessage {
+    final msg = message.message.toLowerCase();
+    return message.isAudioCall ||
+        message.isVideoCall ||
+        msg.contains('call started') ||
+        (msg.contains('missed') && msg.contains('call')) ||
+        (msg.contains('declined') && msg.contains('call')) ||
+        (msg.contains('ended') && msg.contains('call')) ||
+        msg.contains('duration:') ||
+        msg.startsWith('video call') ||
+        msg.startsWith('audio call');
+  }
+
+  Widget _buildCallBubble(BuildContext context) {
+    final msgText = message.message.trim();
+    final msgLower = msgText.toLowerCase();
+    final bool isVideo = message.isVideoCall || msgLower.contains('video');
+
+    final bool isDeclined = msgLower.contains('declined') || msgLower.contains('rejected');
+    final bool isEnded = msgLower.contains('ended') ||
+        msgLower.contains('duration') ||
+        msgLower.contains('completed') ||
+        RegExp(r'\d+:\d+').hasMatch(msgText);
+    final bool isMissed = !isEnded && (msgLower.contains('missed') ||
+        (msgLower.contains('ringing') && !msgLower.contains('ended')));
+
+    String title;
+    String subtitle;
+    IconData iconData;
+    Color iconBgColor;
+    Color iconColor;
+
+    if (isDeclined) {
+      title = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
+      subtitle = 'Declined';
+      iconData = isVideo ? Icons.videocam_off_rounded : Icons.phone_disabled_rounded;
+      iconBgColor = AppColors.danger.withAlpha(35);
+      iconColor = AppColors.danger;
+    } else if (isMissed) {
+      title = isVideo ? 'Missed Video Call' : 'Missed Audio Call';
+      subtitle = 'Missed';
+      iconData = isVideo ? Icons.videocam_off_rounded : Icons.phone_missed_rounded;
+      iconBgColor = AppColors.danger.withAlpha(35);
+      iconColor = AppColors.danger;
+    } else if (isEnded) {
+      if (msgText.contains('\n')) {
+        final lines = msgText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        title = lines[0];
+        subtitle = lines.length > 1 ? lines[1] : 'Completed';
+      } else {
+        title = isVideo ? 'Video Call Is Ended' : 'Audio Call Is Ended';
+        final match = RegExp(r'duration[:\s]*([0-9:]+)', caseSensitive: false).firstMatch(msgText) ??
+            RegExp(r'\(([^)]+)\)').firstMatch(msgText) ??
+            RegExp(r'(\d+:\d+)').firstMatch(msgText);
+        if (match != null) {
+          final dur = match.group(1) ?? '';
+          subtitle = dur.toLowerCase().startsWith('duration') ? dur : 'Duration: $dur';
+        } else {
+          subtitle = 'Completed';
+        }
+      }
+
+      iconData = isVideo ? Icons.videocam_rounded : Icons.call_rounded;
+      iconBgColor = isMe ? Colors.white.withAlpha(40) : AppColors.primary.withAlpha(35);
+      iconColor = isMe ? Colors.white : AppColors.primary;
+    } else {
+      if (msgText.contains('\n')) {
+        final lines = msgText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        title = lines[0];
+        subtitle = lines.length > 1 ? lines[1] : 'Started';
+      } else {
+        if (isMe) {
+          title = isVideo ? 'Outgoing Video Call' : 'Outgoing Audio Call';
+        } else {
+          title = isVideo ? 'Incoming Video Call' : 'Incoming Audio Call';
+        }
+        subtitle = 'Started';
+      }
+
+      iconData = isVideo
+          ? Icons.videocam_rounded
+          : (isMe ? Icons.call_made_rounded : Icons.call_received_rounded);
+      iconBgColor = isMe ? Colors.white.withAlpha(40) : AppColors.primary.withAlpha(35);
+      iconColor = isMe ? Colors.white : AppColors.primary;
+    }
+
+    final formattedTime = _formatTime(message.createdAt);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe && isGroup)
+            Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 4),
+              child: CustomAvatar(
+                name: message.sender?.name ?? 'User',
+                avatarUrl: message.sender?.avatar,
+                size: 28,
+              ),
+            ),
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.72,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: isMe ? AppColors.primaryGradient : null,
+              color: isMe ? null : AppColors.card,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
+              ),
+              border: isMe ? null : Border.all(color: AppColors.border, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(35),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: iconBgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(iconData, color: iconColor, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: isMe ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isMissed || isDeclined
+                                  ? (isMe ? Colors.white.withAlpha(220) : AppColors.danger)
+                                  : (isMe ? Colors.white.withAlpha(200) : AppColors.textSecondary),
+                              fontWeight: isMissed || isDeclined ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      formattedTime,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: isMe ? Colors.white.withAlpha(200) : AppColors.textMuted,
+                      ),
+                    ),
+                    if (isMe) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                        size: 14,
+                        color: message.isRead ? Colors.cyanAccent : Colors.white.withAlpha(200),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
         ],

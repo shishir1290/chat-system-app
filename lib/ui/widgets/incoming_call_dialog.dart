@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../main.dart';
 import '../../providers/call_provider.dart';
+import '../screens/call_screen.dart';
 import '../theme/app_theme.dart';
 import 'custom_avatar.dart';
 
@@ -15,7 +17,7 @@ class IncomingCallDialog extends StatelessWidget {
     if (incoming == null) return const SizedBox.shrink();
 
     return Positioned(
-      top: 40,
+      top: 50,
       left: 16,
       right: 16,
       child: Material(
@@ -107,7 +109,12 @@ class IncomingCallDialog extends StatelessWidget {
                     color: Colors.white,
                     size: 20,
                   ),
-                  onPressed: () => call.answerCall(),
+                  onPressed: () async {
+                    await call.answerCall();
+                    appNavigatorKey.currentState?.push(
+                      MaterialPageRoute(builder: (_) => const CallScreen()),
+                    );
+                  },
                 ),
               ),
             ],

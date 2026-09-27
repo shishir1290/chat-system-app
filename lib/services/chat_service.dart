@@ -11,7 +11,9 @@ class ChatService {
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
       final List list = resData['data'] is List ? resData['data'] : [];
-      return list.map((r) => ChatRoomModel.fromJson(r as Map<String, dynamic>)).toList();
+      return list
+          .map((r) => ChatRoomModel.fromJson(r as Map<String, dynamic>))
+          .toList();
     }
     return [];
   }
@@ -28,13 +30,13 @@ class ChatService {
     throw Exception(resData['message'] ?? 'Failed to open direct chat');
   }
 
-  Future<ChatRoomModel> createGroupRoom(String name, List<String> memberIds) async {
+  Future<ChatRoomModel> createGroupRoom(
+    String name,
+    List<String> memberIds,
+  ) async {
     final response = await _api.post(
       '/api/v1/chat/rooms/group',
-      data: {
-        'name': name,
-        'member_ids': memberIds,
-      },
+      data: {'name': name, 'member_ids': memberIds},
     );
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
@@ -52,7 +54,10 @@ class ChatService {
     throw Exception(resData['message'] ?? 'Failed to load room');
   }
 
-  Future<ChatRoomModel> addMembers(String roomId, List<String> memberIds) async {
+  Future<ChatRoomModel> addMembers(
+    String roomId,
+    List<String> memberIds,
+  ) async {
     final response = await _api.post(
       '/api/v1/chat/rooms/add-members/$roomId',
       data: {'member_ids': memberIds},
@@ -85,13 +90,14 @@ class ChatService {
     throw Exception(resData['message'] ?? 'Failed to upload group avatar');
   }
 
-  Future<ChatRoomModel> updateGroupRoom(String roomId, {String? name, String? avatar}) async {
+  Future<ChatRoomModel> updateGroupRoom(
+    String roomId, {
+    String? name,
+    String? avatar,
+  }) async {
     final response = await _api.put(
       '/api/v1/chat/rooms/update/$roomId',
-      data: {
-        if (name != null) 'name': name,
-        if (avatar != null) 'avatar': avatar,
-      },
+      data: {'name': ?name, 'avatar': ?avatar},
     );
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
@@ -104,13 +110,14 @@ class ChatService {
     await _api.delete('/api/v1/chat/rooms/delete/$roomId');
   }
 
-  Future<ChatRoomModel> setMemberAdmin(String roomId, String memberId, bool isAdmin) async {
+  Future<ChatRoomModel> setMemberAdmin(
+    String roomId,
+    String memberId,
+    bool isAdmin,
+  ) async {
     final response = await _api.post(
       '/api/v1/chat/rooms/admin/$roomId',
-      data: {
-        'member_id': memberId,
-        'is_admin': isAdmin,
-      },
+      data: {'member_id': memberId, 'is_admin': isAdmin},
     );
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {

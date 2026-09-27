@@ -8,6 +8,11 @@ import 'ui/screens/home_screen.dart';
 import 'ui/screens/landing_screen.dart';
 import 'ui/theme/app_theme.dart';
 
+import 'models/call_model.dart';
+import 'ui/widgets/incoming_call_dialog.dart';
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const NexoraApp());
@@ -26,9 +31,23 @@ class NexoraApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CallProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: appNavigatorKey,
         title: 'Nexora Chat',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        builder: (context, child) {
+          return Consumer<CallProvider>(
+            builder: (context, call, _) {
+              return Stack(
+                children: [
+                  ?child,
+                  if (call.callStatus == CallStatus.incoming)
+                    const IncomingCallDialog(),
+                ],
+              );
+            },
+          );
+        },
         home: const AuthGate(),
       ),
     );

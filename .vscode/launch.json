@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Nexora Chat",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define",
+        "API_URL=http://10.81.100.38:9080",
+        "--dart-define",
+        "SOCKET_URL=http://10.81.100.38:9080"
+      ]
+    }
+  ]
+}

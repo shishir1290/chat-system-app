@@ -67,6 +67,7 @@ class CustomAvatar extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: fullUrl,
                     fit: BoxFit.cover,
+                    errorListener: (_) {},
                     placeholder: (context, url) => Center(
                       child: Text(
                         _getInitials(name),

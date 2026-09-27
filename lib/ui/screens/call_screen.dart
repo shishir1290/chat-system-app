@@ -57,7 +57,9 @@ class _CallScreenState extends State<CallScreen> {
 
     final isVideo = call.callType == CallType.video;
     final remoteRenderers = call.remoteRenderers;
-    final hasRemoteVideo = remoteRenderers.isNotEmpty && isVideo;
+    final hasRemoteVideo = remoteRenderers.isNotEmpty &&
+        isVideo &&
+        remoteRenderers.values.any((r) => r.srcObject != null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -67,7 +69,10 @@ class _CallScreenState extends State<CallScreen> {
           if (hasRemoteVideo)
             Positioned.fill(
               child: RTCVideoView(
-                remoteRenderers.values.first,
+                remoteRenderers.values.firstWhere(
+                  (r) => r.srcObject != null,
+                  orElse: () => remoteRenderers.values.first,
+                ),
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
               ),
             )
@@ -101,7 +106,9 @@ class _CallScreenState extends State<CallScreen> {
                     Text(
                       call.callStatus == CallStatus.connected
                           ? _formatDuration(_callDurationSeconds)
-                          : 'Ringing / Connecting...',
+                          : call.callStatus == CallStatus.calling
+                              ? 'Connecting...'
+                              : 'Ringing...',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,

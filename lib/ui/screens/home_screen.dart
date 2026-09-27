@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../models/call_model.dart';
 import '../../models/room_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/call_provider.dart';
@@ -9,7 +8,6 @@ import '../../providers/chat_provider.dart';
 import '../../providers/socket_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_avatar.dart';
-import '../widgets/incoming_call_dialog.dart';
 import '../widgets/new_chat_dialog.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
@@ -69,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = context.watch<AuthProvider>();
     final chat = context.watch<ChatProvider>();
     final socket = context.watch<SocketProvider>();
-    final call = context.watch<CallProvider>();
 
     final user = auth.user;
     final currentUserId = user?.id ?? '';
@@ -84,37 +81,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final isWideScreen = MediaQuery.of(context).size.width > 768;
 
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: AppColors.background,
-          body: isWideScreen
-              ? Row(
-                  children: [
-                    // Left Sidebar
-                    SizedBox(
-                      width: 360,
-                      child: _buildSidebar(context, user, currentUserId, filteredRooms, socket, chat, isWideScreen: true),
-                    ),
-                    const VerticalDivider(width: 1, color: AppColors.border),
-                    // Right Chat Pane
-                    Expanded(
-                      child: chat.activeRoom != null
-                          ? ChatScreen(
-                              room: chat.activeRoom!,
-                              onBack: () => chat.selectRoom(null),
-                            )
-                          : _buildEmptyState(),
-                    ),
-                  ],
-                )
-              : _buildSidebar(context, user, currentUserId, filteredRooms, socket, chat, isWideScreen: false),
-        ),
-
-        // Incoming Call Notification Overlay Banner
-        if (call.callStatus == CallStatus.incoming)
-          const IncomingCallDialog(),
-      ],
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: isWideScreen
+          ? Row(
+              children: [
+                // Left Sidebar
+                SizedBox(
+                  width: 360,
+                  child: _buildSidebar(context, user, currentUserId, filteredRooms, socket, chat, isWideScreen: true),
+                ),
+                const VerticalDivider(width: 1, color: AppColors.border),
+                // Right Chat Pane
+                Expanded(
+                  child: chat.activeRoom != null
+                      ? ChatScreen(
+                          room: chat.activeRoom!,
+                          onBack: () => chat.selectRoom(null),
+                        )
+                      : _buildEmptyState(),
+                ),
+              ],
+            )
+          : _buildSidebar(context, user, currentUserId, filteredRooms, socket, chat, isWideScreen: false),
     );
   }
 

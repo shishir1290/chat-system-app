@@ -20,12 +20,21 @@ class AuthService {
       if (token.isNotEmpty) {
         await _api.saveToken(token);
       }
-      return {'user': user, 'token': token, 'refreshToken': data['refresh_token']};
+      return {
+        'user': user,
+        'token': token,
+        'refreshToken': data['refresh_token'],
+      };
     }
     throw Exception(resData['message'] ?? 'Login failed');
   }
 
-  Future<UserModel> register(String name, String email, String password, {String? phone}) async {
+  Future<UserModel> register(
+    String name,
+    String email,
+    String password, {
+    String? phone,
+  }) async {
     final response = await _api.post(
       '/api/v1/users/register',
       data: {
@@ -68,13 +77,14 @@ class AuthService {
     throw Exception(resData['message'] ?? 'Failed to get profile');
   }
 
-  Future<UserModel> updateProfile(String id, {String? name, String? email}) async {
+  Future<UserModel> updateProfile(
+    String id, {
+    String? name,
+    String? email,
+  }) async {
     final response = await _api.put(
       '/api/v1/users/update/$id',
-      data: {
-        if (name != null) 'name': name,
-        if (email != null) 'email': email,
-      },
+      data: {'name': ?name, 'email': ?email},
     );
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
@@ -86,10 +96,7 @@ class AuthService {
   Future<void> changePassword(String oldPassword, String newPassword) async {
     final response = await _api.post(
       '/api/v1/users/change-password',
-      data: {
-        'old_password': oldPassword,
-        'new_password': newPassword,
-      },
+      data: {'old_password': oldPassword, 'new_password': newPassword},
     );
     if (response.data['status'] != true) {
       throw Exception(response.data['message'] ?? 'Password change failed');
@@ -102,10 +109,7 @@ class AuthService {
       'avatar': await MultipartFile.fromFile(file.path, filename: fileName),
     });
 
-    final response = await _api.post(
-      '/api/v1/users/avatar',
-      data: formData,
-    );
+    final response = await _api.post('/api/v1/users/avatar', data: formData);
 
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
@@ -122,8 +126,12 @@ class AuthService {
     final resData = response.data;
     if (resData['status'] == true && resData['data'] != null) {
       final data = resData['data'];
-      final List items = data is Map ? (data['data'] ?? []) : (data is List ? data : []);
-      return items.map((u) => UserModel.fromJson(u as Map<String, dynamic>)).toList();
+      final List items = data is Map
+          ? (data['data'] ?? [])
+          : (data is List ? data : []);
+      return items
+          .map((u) => UserModel.fromJson(u as Map<String, dynamic>))
+          .toList();
     }
     return [];
   }
