@@ -114,30 +114,20 @@ class SocketService {
     _socket!.on('member_left', (data) => _roomUpdatedController.add(data));
     _socket!.on('room_deleted', (data) => _roomUpdatedController.add(data));
 
-    // Call Listeners
+    // Call listeners.
+    // Keep one canonical event for each signaling message. The old implementation
+    // registered multiple aliases for the same message, which could deliver the
+    // same SDP/ICE payload several times and make the two implementations enter
+    // different RTCPeerConnection signaling states.
     _socket!.on('incoming_call', (data) => _incomingCallController.add(data));
-    _socket!.on('call_incoming', (data) => _incomingCallController.add(data));
-    _socket!.on('call_user', (data) => _incomingCallController.add(data));
-    _socket!.on('call:incoming', (data) => _incomingCallController.add(data));
     _socket!.on('call_offer', (data) => _callOfferController.add(data));
-    _socket!.on('call:offer', (data) => _callOfferController.add(data));
-    _socket!.on('offer', (data) => _callOfferController.add(data));
     _socket!.on('call_answered', (data) => _callAnsweredController.add(data));
-    _socket!.on('call:answered', (data) => _callAnsweredController.add(data));
-    _socket!.on('call_answer', (data) => _callAnsweredController.add(data));
-    _socket!.on('answer_call', (data) => _callAnsweredController.add(data));
-    _socket!.on('call_accepted', (data) => _callAnsweredController.add(data));
     _socket!.on('call_rejected', (data) => _callRejectedController.add(data));
-    _socket!.on('call:rejected', (data) => _callRejectedController.add(data));
     _socket!.on('ice_candidate', (data) => _iceCandidateController.add(data));
-    _socket!.on('call:ice_candidate', (data) => _iceCandidateController.add(data));
-    _socket!.on('ice-candidate', (data) => _iceCandidateController.add(data));
-    _socket!.on('candidate', (data) => _iceCandidateController.add(data));
     _socket!.on('user_joined_call', (data) => _userJoinedCallController.add(data));
     _socket!.on('user_left_call', (data) => _userLeftCallController.add(data));
     _socket!.on('group_call_status', (data) => _groupCallStatusController.add(data));
     _socket!.on('call_ended', (data) => _callEndedController.add(data));
-    _socket!.on('call:ended', (data) => _callEndedController.add(data));
   }
 
   void _handleOnlineUsers(dynamic data) {
@@ -192,46 +182,35 @@ class SocketService {
   }
 
   void emitCallUser(Map<String, dynamic> payload) {
+    // Canonical call setup event. Do not emit the same SDP under several
+    // aliases: a relay may forward each alias and the answerer can receive
+    // duplicate offers.
     _socket?.emit('call_user', payload);
-    _socket?.emit('call:incoming', payload);
-    _socket?.emit('incoming_call', payload);
-    _socket?.emit('call_offer', payload);
-    _socket?.emit('call:offer', payload);
-    _socket?.emit('offer', payload);
   }
 
   void emitAnswerCall(Map<String, dynamic> payload) {
+    // Canonical answer event. The answer must be delivered exactly once so
+    // the caller remains in HaveLocalOffer until this answer is applied.
     _socket?.emit('answer_call', payload);
-    _socket?.emit('call_answered', payload);
-    _socket?.emit('call:answered', payload);
-    _socket?.emit('call_answer', payload);
-    _socket?.emit('accept_call', payload);
-    _socket?.emit('call_accepted', payload);
   }
 
   void emitRejectCall(Map<String, dynamic> payload) {
     _socket?.emit('reject_call', payload);
-    _socket?.emit('call_rejected', payload);
-    _socket?.emit('call:rejected', payload);
   }
 
   void emitEndCall(Map<String, dynamic> payload) {
     _socket?.emit('end_call', payload);
-    _socket?.emit('call_ended', payload);
-    _socket?.emit('call:ended', payload);
   }
 
   void emitIceCandidate(Map<String, dynamic> payload) {
+    // Trickle ICE is also sent once. Duplicating candidates can cause
+    // platform-dependent WebRTC errors, especially when SDP arrives in a
+    // different order on Flutter and the browser.
     _socket?.emit('ice_candidate', payload);
-    _socket?.emit('call:ice_candidate', payload);
-    _socket?.emit('ice-candidate', payload);
-    _socket?.emit('candidate', payload);
-    _socket?.emit('call:candidate', payload);
   }
 
   void emitJoinCall(Map<String, dynamic> payload) {
     _socket?.emit('join_call', payload);
-    _socket?.emit('call:join', payload);
   }
 
   void emitLeaveCall(String roomId) {
