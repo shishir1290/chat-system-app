@@ -29,6 +29,9 @@ class ChatProvider extends ChangeNotifier {
   StreamSubscription? _readMsgSub;
   StreamSubscription? _typingSub;
   StreamSubscription? _roomUpdateSub;
+  StreamSubscription? _callEndedSub;
+  StreamSubscription? _callRejectedSub;
+  StreamSubscription? _groupCallStatusSub;
 
   List<ChatRoomModel> get rooms => _rooms;
   ChatRoomModel? get activeRoom => _activeRoom;
@@ -59,6 +62,9 @@ class ChatProvider extends ChangeNotifier {
     _readMsgSub?.cancel();
     _typingSub?.cancel();
     _roomUpdateSub?.cancel();
+    _callEndedSub?.cancel();
+    _callRejectedSub?.cancel();
+    _groupCallStatusSub?.cancel();
 
     _newMsgSub = _socketService.newMessageStream.listen(_handleIncomingMessage);
     _editMsgSub = _socketService.messageEditedStream.listen(_handleEditedMessage);
@@ -66,6 +72,84 @@ class ChatProvider extends ChangeNotifier {
     _readMsgSub = _socketService.messageReadStream.listen(_handleReadMessage);
     _typingSub = _socketService.typingStream.listen(_handleTypingEvent);
     _roomUpdateSub = _socketService.roomUpdatedStream.listen((_) => loadRooms(silent: true));
+    _callEndedSub = _socketService.callEndedStream.listen(_handleCallEndedEvent);
+    _callRejectedSub = _socketService.callRejectedStream.listen(_handleCallRejectedEvent);
+    _groupCallStatusSub = _socketService.groupCallStatusStream.listen(_handleGroupCallStatusEvent);
+  }
+
+  void _handleCallEndedEvent(dynamic data) {
+    String? roomId;
+    if (data is Map) {
+      roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
+    }
+    _deactivateActiveCallMessages(targetRoomId: roomId);
+  }
+
+  void _handleCallRejectedEvent(dynamic data) {
+    String? roomId;
+    if (data is Map) {
+      roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
+    }
+    _deactivateActiveCallMessages(targetRoomId: roomId, isDeclined: true);
+  }
+
+  void _handleGroupCallStatusEvent(dynamic data) {
+    if (data is Map && data['is_active'] == false) {
+      final roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
+      _deactivateActiveCallMessages(targetRoomId: roomId);
+    }
+  }
+
+  void _deactivateActiveCallMessages({String? targetRoomId, bool isDeclined = false}) {
+    bool updated = false;
+    for (final entry in _roomMessages.entries) {
+      if (targetRoomId != null && targetRoomId.isNotEmpty && entry.key != targetRoomId) {
+        continue;
+      }
+      final list = entry.value;
+      for (int i = 0; i < list.length; i++) {
+        final m = list[i];
+        if (m.isCallActive) {
+          final isVideo = m.isVideoCall;
+          String newText = m.message;
+          if (isDeclined) {
+            newText = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
+          }
+          list[i] = m.copyWith(
+            isCallActive: false,
+            message: newText,
+          );
+          updated = true;
+        }
+      }
+    }
+
+    for (int i = 0; i < _rooms.length; i++) {
+      final room = _rooms[i];
+      if (targetRoomId != null && targetRoomId.isNotEmpty && room.id != targetRoomId) {
+        continue;
+      }
+      if (room.lastMessage != null && room.lastMessage!.isCallActive) {
+        final last = room.lastMessage!;
+        final isVideo = last.isVideoCall;
+        String newText = last.message;
+        if (isDeclined) {
+          newText = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
+        }
+        _rooms[i] = room.copyWith(
+          lastMessage: last.copyWith(
+            isCallActive: false,
+            message: newText,
+          ),
+          updatedAt: DateTime.now(),
+        );
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      notifyListeners();
+    }
   }
 
   void _handleIncomingMessage(dynamic data) {
@@ -131,39 +215,50 @@ class ChatProvider extends ChangeNotifier {
       if (rawMap is Map) {
         final msgMap = Map<String, dynamic>.from(rawMap);
         final message = MessageModel.fromJson(msgMap);
-        final roomId = message.roomId.isNotEmpty ? message.roomId : (_activeRoom?.id ?? '');
-
-        // Update in room messages if cached
-        final targetRoomIds = [
-          if (message.roomId.isNotEmpty) message.roomId,
-          if (_activeRoom != null && _activeRoom!.id.isNotEmpty) _activeRoom!.id,
-        ];
+        final msgId = message.id;
+        if (msgId.isEmpty) return;
 
         bool updatedInList = false;
-        for (final rId in targetRoomIds) {
-          final list = _roomMessages[rId];
-          if (list != null) {
-            final idx = list.indexWhere((m) => m.id == message.id);
-            if (idx != -1) {
-              list[idx] = message;
-              updatedInList = true;
-            }
+
+        // Search across all loaded room message lists
+        for (final list in _roomMessages.values) {
+          final idx = list.indexWhere((m) => m.id == msgId);
+          if (idx != -1) {
+            final old = list[idx];
+            list[idx] = old.copyWith(
+              message: message.message.isNotEmpty ? message.message : old.message,
+              isCallActive: message.isCallActive,
+              isAudioCall: message.isAudioCall || old.isAudioCall,
+              isVideoCall: message.isVideoCall || old.isVideoCall,
+              isEdited: true,
+              senderId: message.senderId.isNotEmpty ? message.senderId : old.senderId,
+              sender: message.sender ?? old.sender,
+              createdAt: message.createdAt ?? old.createdAt,
+            );
+            updatedInList = true;
           }
         }
 
-        // Update last message in room sidebar if matched
-        final roomIndex = _rooms.indexWhere((r) => r.id == roomId);
-        if (roomIndex != -1) {
-          final room = _rooms[roomIndex];
-          if (room.lastMessage?.id == message.id) {
-            _rooms[roomIndex] = room.copyWith(
-              lastMessage: message,
+        // Update in room sidebar if matched
+        for (int i = 0; i < _rooms.length; i++) {
+          final room = _rooms[i];
+          if (room.lastMessage?.id == msgId) {
+            final old = room.lastMessage!;
+            _rooms[i] = room.copyWith(
+              lastMessage: old.copyWith(
+                message: message.message.isNotEmpty ? message.message : old.message,
+                isCallActive: message.isCallActive,
+                isAudioCall: message.isAudioCall || old.isAudioCall,
+                isVideoCall: message.isVideoCall || old.isVideoCall,
+                isEdited: true,
+              ),
               updatedAt: DateTime.now(),
             );
+            updatedInList = true;
           }
         }
 
-        if (updatedInList || roomIndex != -1) {
+        if (updatedInList) {
           notifyListeners();
         }
       }
@@ -556,6 +651,9 @@ class ChatProvider extends ChangeNotifier {
     _readMsgSub?.cancel();
     _typingSub?.cancel();
     _roomUpdateSub?.cancel();
+    _callEndedSub?.cancel();
+    _callRejectedSub?.cancel();
+    _groupCallStatusSub?.cancel();
     super.dispose();
   }
 }

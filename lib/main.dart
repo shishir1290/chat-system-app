@@ -9,6 +9,11 @@ import 'ui/screens/home_screen.dart';
 import 'ui/screens/landing_screen.dart';
 import 'ui/theme/app_theme.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'config/constants.dart';
+import 'services/api_service.dart';
+import 'services/fcm_service.dart';
 import 'models/call_model.dart';
 import 'ui/widgets/incoming_call_dialog.dart';
 
@@ -21,11 +26,43 @@ void main() async {
   } catch (e) {
     debugPrint("Failed to load .env file: $e");
   }
+
+  // Ensure ApiService uses the loaded AppConfig.apiUrl
+  ApiService().updateBaseUrl(AppConfig.apiUrl);
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await FCMService().initialize();
+  } catch (e) {
+    debugPrint("Firebase init: $e");
+  }
+
   runApp(const NexoraApp());
 }
 
-class NexoraApp extends StatelessWidget {
+class NexoraApp extends StatefulWidget {
   const NexoraApp({super.key});
+
+  @override
+  State<NexoraApp> createState() => _NexoraAppState();
+}
+
+class _NexoraAppState extends State<NexoraApp> {
+  final CallProvider _callProvider = CallProvider();
+
+  @override
+  void initState() {
+    super.initState();
+    FCMService().processPendingNotification((data, actionId) {
+      final type = data['type'];
+      if (type == 'CALL_INCOMING') {
+        final autoAnswer = actionId == 'answer_call';
+        _callProvider.handleIncomingCallFromPush(data, autoAnswer: autoAnswer);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +71,7 @@ class NexoraApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => SocketProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
-        ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider.value(value: _callProvider),
       ],
       child: MaterialApp(
         navigatorKey: appNavigatorKey,

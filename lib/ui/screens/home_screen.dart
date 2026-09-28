@@ -19,13 +19,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthProvider>();
       if (auth.user != null) {
@@ -38,7 +39,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final auth = context.read<AuthProvider>();
+      if (auth.user != null) {
+        context.read<ChatProvider>().loadRooms(silent: true);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -188,31 +200,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 8),
 
-            // Rooms / Conversations List
             Expanded(
-              child: chat.isLoadingRooms
+              child: chat.isLoadingRooms && chat.rooms.isEmpty
                   ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                  : filteredRooms.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.chat_bubble_outline_rounded, size: 44, color: AppColors.textMuted),
-                              const SizedBox(height: 12),
-                              const Text('No conversations found', style: TextStyle(color: AppColors.textSecondary)),
-                              const SizedBox(height: 8),
-                              TextButton.icon(
-                                icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                                label: const Text('Start a new chat', style: TextStyle(color: AppColors.primary)),
-                                onPressed: _openNewChatDialog,
+                  : RefreshIndicator(
+                      color: AppColors.primary,
+                      onRefresh: () => chat.loadRooms(),
+                      child: filteredRooms.isEmpty
+                          ? LayoutBuilder(
+                              builder: (context, constraints) => SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                                  child: Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(24.0),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: AppColors.textMuted),
+                                          const SizedBox(height: 12),
+                                          const Text(
+                                            'No conversations found',
+                                            style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'Tap below to browse users and start a chat',
+                                            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          ElevatedButton.icon(
+                                            icon: const Icon(Icons.add_comment_rounded, size: 18),
+                                            label: const Text('Start a new chat'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.primary,
+                                              foregroundColor: Colors.black,
+                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                            onPressed: _openNewChatDialog,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: AppColors.primary,
-                          onRefresh: () => chat.loadRooms(),
-                          child: ListView.separated(
+                            )
+                          : ListView.separated(
                             itemCount: filteredRooms.length,
                             separatorBuilder: (_, _) => const Divider(height: 1, indent: 70),
                             itemBuilder: (context, index) {

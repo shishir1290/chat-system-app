@@ -725,21 +725,33 @@ class MessageBubble extends StatelessWidget {
         (msg.contains('ended') && msg.contains('call')) ||
         msg.contains('duration:') ||
         msg.startsWith('video call') ||
-        msg.startsWith('audio call');
+        msg.startsWith('audio call') ||
+        msg.contains('call (');
   }
 
   Widget _buildCallBubble(BuildContext context) {
     final msgText = message.message.trim();
     final msgLower = msgText.toLowerCase();
-    final bool isVideo = message.isVideoCall || msgLower.contains('video');
 
-    final bool isDeclined = msgLower.contains('declined') || msgLower.contains('rejected');
-    final bool isEnded = msgLower.contains('ended') ||
-        msgLower.contains('duration') ||
-        msgLower.contains('completed') ||
-        RegExp(r'\d+:\d+').hasMatch(msgText);
-    final bool isMissed = !isEnded && (msgLower.contains('missed') ||
-        (msgLower.contains('ringing') && !msgLower.contains('ended')));
+    // Accurate isVideo determination matching web logic
+    final bool isVideo = (message.isVideoCall && !message.isAudioCall) ||
+        (msgLower.contains('video') && !msgLower.contains('audio'));
+
+    final bool isDeclined = msgLower.contains('declined') ||
+        msgLower.contains('decline') ||
+        msgLower.contains('rejected');
+    final bool isMissed = !isDeclined && msgLower.contains('missed');
+    final bool isLive = message.isCallActive;
+
+    // Duration extraction
+    String? callDuration;
+    final match = RegExp(r'duration[:\s]*([0-9:]+)', caseSensitive: false).firstMatch(msgText) ??
+        RegExp(r'\(([^)]+)\)').firstMatch(msgText) ??
+        RegExp(r'(\d+:\d+)').firstMatch(msgText);
+    if (match != null) {
+      final dur = match.group(1) ?? '';
+      callDuration = dur.toLowerCase().startsWith('duration') ? dur : 'Duration: $dur';
+    }
 
     String title;
     String subtitle;
@@ -747,7 +759,13 @@ class MessageBubble extends StatelessWidget {
     Color iconBgColor;
     Color iconColor;
 
-    if (isDeclined) {
+    if (isLive) {
+      title = isVideo ? 'Live Video Call' : 'Live Audio Call';
+      subtitle = 'Ongoing call';
+      iconData = isVideo ? Icons.videocam_rounded : Icons.phone_in_talk_rounded;
+      iconBgColor = isMe ? Colors.white.withAlpha(50) : AppColors.primary.withAlpha(45);
+      iconColor = isMe ? Colors.white : AppColors.primary;
+    } else if (isDeclined) {
       title = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
       subtitle = 'Declined';
       iconData = isVideo ? Icons.videocam_off_rounded : Icons.phone_disabled_rounded;
@@ -759,44 +777,11 @@ class MessageBubble extends StatelessWidget {
       iconData = isVideo ? Icons.videocam_off_rounded : Icons.phone_missed_rounded;
       iconBgColor = AppColors.danger.withAlpha(35);
       iconColor = AppColors.danger;
-    } else if (isEnded) {
-      if (msgText.contains('\n')) {
-        final lines = msgText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-        title = lines[0];
-        subtitle = lines.length > 1 ? lines[1] : 'Completed';
-      } else {
-        title = isVideo ? 'Video Call Is Ended' : 'Audio Call Is Ended';
-        final match = RegExp(r'duration[:\s]*([0-9:]+)', caseSensitive: false).firstMatch(msgText) ??
-            RegExp(r'\(([^)]+)\)').firstMatch(msgText) ??
-            RegExp(r'(\d+:\d+)').firstMatch(msgText);
-        if (match != null) {
-          final dur = match.group(1) ?? '';
-          subtitle = dur.toLowerCase().startsWith('duration') ? dur : 'Duration: $dur';
-        } else {
-          subtitle = 'Completed';
-        }
-      }
-
-      iconData = isVideo ? Icons.videocam_rounded : Icons.call_rounded;
-      iconBgColor = isMe ? Colors.white.withAlpha(40) : AppColors.primary.withAlpha(35);
-      iconColor = isMe ? Colors.white : AppColors.primary;
     } else {
-      if (msgText.contains('\n')) {
-        final lines = msgText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-        title = lines[0];
-        subtitle = lines.length > 1 ? lines[1] : 'Started';
-      } else {
-        if (isMe) {
-          title = isVideo ? 'Outgoing Video Call' : 'Outgoing Audio Call';
-        } else {
-          title = isVideo ? 'Incoming Video Call' : 'Incoming Audio Call';
-        }
-        subtitle = 'Started';
-      }
-
-      iconData = isVideo
-          ? Icons.videocam_rounded
-          : (isMe ? Icons.call_made_rounded : Icons.call_received_rounded);
+      // Ended or Completed call
+      title = isVideo ? 'Video Call Is Ended' : 'Audio Call Is Ended';
+      subtitle = callDuration ?? 'Call ended';
+      iconData = isVideo ? Icons.videocam_rounded : Icons.call_rounded;
       iconBgColor = isMe ? Colors.white.withAlpha(40) : AppColors.primary.withAlpha(35);
       iconColor = isMe ? Colors.white : AppColors.primary;
     }

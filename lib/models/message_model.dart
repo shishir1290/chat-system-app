@@ -222,7 +222,7 @@ class MessageModel {
       'is_edited': isEdited,
       'is_image': isImage,
       'is_audio': isAudio,
-      'isVideo': isVideo,
+      'is_video': isVideo,
       'is_audio_call': isAudioCall,
       'is_video_call': isVideoCall,
       'is_call_active': isCallActive,

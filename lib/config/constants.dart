@@ -1,28 +1,53 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
-  // Default API and Socket backend endpoints from .env with fallback
-  static String get defaultApiUrl =>
-      dotenv.maybeGet('API_URL') ??
-      const String.fromEnvironment(
-        'API_URL',
-        defaultValue: 'https://195.35.6.141',
-      );
+  static String _formatUrl(String raw) {
+    var url = raw.trim();
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (!kIsWeb && Platform.isAndroid) {
+      if (url.contains('localhost')) {
+        url = url.replaceAll('localhost', '10.0.2.2');
+      } else if (url.contains('127.0.0.1')) {
+        url = url.replaceAll('127.0.0.1', '10.0.2.2');
+      }
+    }
+    return url;
+  }
 
-  static String get defaultSocketUrl =>
-      dotenv.maybeGet('SOCKET_URL') ??
-      const String.fromEnvironment(
-        'SOCKET_URL',
-        defaultValue: 'https://195.35.6.141',
-      );
+  // Default API and Socket backend endpoints from .env with fallback
+  static String get defaultApiUrl {
+    final envVal = dotenv.maybeGet('API_URL');
+    if (envVal != null && envVal.isNotEmpty) {
+      return _formatUrl(envVal);
+    }
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.0.2.2:9060';
+    }
+    return 'http://localhost:9060';
+  }
+
+  static String get defaultSocketUrl {
+    final envVal = dotenv.maybeGet('SOCKET_URL');
+    if (envVal != null && envVal.isNotEmpty) {
+      return _formatUrl(envVal);
+    }
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.0.2.2:9060';
+    }
+    return 'http://localhost:9060';
+  }
 
   static String _apiUrl = '';
   static String get apiUrl => _apiUrl.isNotEmpty ? _apiUrl : defaultApiUrl;
-  static set apiUrl(String val) => _apiUrl = val;
+  static set apiUrl(String val) => _apiUrl = _formatUrl(val);
 
   static String _socketUrl = '';
   static String get socketUrl => _socketUrl.isNotEmpty ? _socketUrl : defaultSocketUrl;
-  static set socketUrl(String val) => _socketUrl = val;
+  static set socketUrl(String val) => _socketUrl = _formatUrl(val);
 
   static const String apiVersion = '/api/v1';
 

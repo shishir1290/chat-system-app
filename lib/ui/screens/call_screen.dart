@@ -168,7 +168,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
 
           // Picture-in-Picture Local Camera View
-          if (isVideo && !call.isVideoOff)
+          if (!call.isVideoOff && call.localRenderer.srcObject != null)
             Positioned(
               top: 100,
               right: 16,
@@ -218,16 +218,15 @@ class _CallScreenState extends State<CallScreen> {
                     onTap: () => call.toggleAudio(),
                   ),
 
-                  // Video Off Toggle
-                  if (isVideo)
-                    _buildCallButton(
-                      icon: call.isVideoOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
-                      isActive: !call.isVideoOff,
-                      onTap: () => call.toggleVideo(),
-                    ),
+                  // Video Camera Toggle (Available for both Audio & Video calls)
+                  _buildCallButton(
+                    icon: call.isVideoOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                    isActive: !call.isVideoOff,
+                    onTap: () => call.toggleVideo(),
+                  ),
 
-                  // Flip Camera
-                  if (isVideo)
+                  // Flip Camera (Shown when Camera is active)
+                  if (!call.isVideoOff)
                     _buildCallButton(
                       icon: Icons.flip_camera_ios_rounded,
                       isActive: true,

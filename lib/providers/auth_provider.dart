@@ -6,6 +6,7 @@ import '../config/constants.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -34,6 +35,12 @@ class AuthProvider extends ChangeNotifier {
         if (userJson != null) {
           _user = UserModel.fromJson(jsonDecode(userJson));
         }
+
+        // Register FCM device token
+        if (FCMService().fcmToken != null) {
+          FCMService().registerTokenWithBackend(FCMService().fcmToken!);
+        }
+
         // Fetch fresh profile in background
         try {
           final freshUser = await _authService.getMe();
@@ -62,6 +69,10 @@ class AuthProvider extends ChangeNotifier {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(StorageKeys.userProfile, jsonEncode(_user!.toJson()));
+
+      if (FCMService().fcmToken != null) {
+        FCMService().registerTokenWithBackend(FCMService().fcmToken!);
+      }
 
       _isLoading = false;
       notifyListeners();
@@ -163,6 +174,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await FCMService().deleteTokenFromBackend();
     _isLoading = false;
     _user = null;
     _token = null;

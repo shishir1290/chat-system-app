@@ -1,12 +1,17 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/constants.dart';
+import '../main.dart';
 import '../models/call_model.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import '../services/message_service.dart';
 import '../services/socket_service.dart';
 import '../services/webrtc_service.dart';
+import '../ui/screens/call_screen.dart';
 
 class CallProvider extends ChangeNotifier {
   final WebRTCService _webrtcService = WebRTCService();
@@ -301,10 +306,80 @@ class CallProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> handleIncomingCallFromPush(Map<String, dynamic> data, {bool autoAnswer = false}) async {
+    try {
+      if (_currentUser == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final userJson = prefs.getString(StorageKeys.userProfile);
+        final token = prefs.getString(StorageKeys.accessToken);
+        if (userJson != null) {
+          _currentUser = UserModel.fromJson(jsonDecode(userJson));
+          await _webrtcService.initializeRenderers();
+          _setupSocketListeners();
+        }
+        if (token != null && _currentUser != null && !_socketService.isConnected) {
+          _socketService.connect(token, myUserId: _currentUser!.id);
+        }
+      }
+
+      final callerId = data['caller_id']?.toString() ?? data['callerId']?.toString() ?? '';
+      final callerName = data['caller_name']?.toString() ?? data['callerName']?.toString() ?? 'Caller';
+      final callerAvatar = data['caller_avatar']?.toString() ?? data['callerAvatar']?.toString() ?? '';
+      final roomId = data['room_id']?.toString() ?? data['roomId']?.toString() ?? '';
+      final roomName = data['room_name']?.toString() ?? data['roomName']?.toString() ?? 'Call';
+      final isVideo = data['is_video'] == 'true' || data['is_video'] == true || data['isVideo'] == true;
+      final isGroup = data['is_group'] == 'true' || data['is_group'] == true || data['isGroup'] == true;
+
+      if (callerId.isEmpty || callerId == _currentUser?.id) return;
+
+      _incomingCall = IncomingCallData(
+        callerId: callerId,
+        callerName: callerName,
+        callerAvatar: callerAvatar,
+        roomId: roomId,
+        roomName: roomName,
+        roomAvatar: callerAvatar,
+        isGroup: isGroup,
+        isVideo: isVideo,
+      );
+      _callStatus = CallStatus.incoming;
+      _callType = isVideo ? CallType.video : CallType.audio;
+      _activeRoomId = roomId;
+      _targetUserId = callerId;
+      _targetUserName = callerName;
+      _targetUserAvatar = callerAvatar;
+      _isGroupCall = isGroup;
+      _isCaller = false;
+      _pendingIceCandidates.clear();
+      notifyListeners();
+
+      if (autoAnswer) {
+        await answerCall();
+        appNavigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const CallScreen()),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error handling incoming call from push: $e');
+    }
+  }
+
   Future<void> answerCall() async {
     if (_incomingCall == null) return;
     final incoming = _incomingCall!;
     _incomingCall = null;
+
+    if (_currentUser == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString(StorageKeys.userProfile);
+      final token = prefs.getString(StorageKeys.accessToken);
+      if (userJson != null) {
+        _currentUser = UserModel.fromJson(jsonDecode(userJson));
+      }
+      if (token != null && _currentUser != null && !_socketService.isConnected) {
+        _socketService.connect(token, myUserId: _currentUser!.id);
+      }
+    }
 
     // Don't set to connected yet — wait for actual WebRTC connection
     _callStatus = CallStatus.calling;
@@ -523,7 +598,16 @@ class CallProvider extends ChangeNotifier {
 
   void _handleCallRejected(dynamic data) {
     debugPrint('Call was rejected');
-    endCall();
+    final callMsgId = _currentCallMessage?.id;
+    final isVideo = _callType == CallType.video;
+    if (callMsgId != null) {
+      final text = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
+      _messageService.editMessage(callMsgId, text, isCallActive: false).catchError((e) {
+        debugPrint('Error editing call message on reject: $e');
+        return MessageModel.fromJson({});
+      });
+    }
+    endCall(silent: true);
   }
 
   Future<void> _handleIceCandidate(dynamic data) async {
@@ -676,8 +760,32 @@ class CallProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleVideo() {
-    _webrtcService.toggleVideo();
+  Future<void> toggleVideo() async {
+    await _webrtcService.toggleVideo();
+    if (!_webrtcService.isVideoOff) {
+      _callType = CallType.video;
+
+      // Broadcast renegotiation offer to all active peers so remote sides receive video
+      for (final peerId in _webrtcService.peerConnections.keys) {
+        try {
+          final offer = await _webrtcService.createOffer(peerId);
+          _socketService.emitCallOffer({
+            'room_id': _activeRoomId,
+            'target_user_id': peerId,
+            'from_id': _currentUser?.id ?? '',
+            'caller_id': _currentUser?.id ?? '',
+            'offer': offer.toMap(),
+            'is_video': true,
+            'caller_name': _currentUser?.name ?? 'User',
+            'caller_avatar': _currentUser?.avatar ?? '',
+            'is_group': _isGroupCall,
+          });
+          debugPrint('📡 Sent renegotiation offer for video to $peerId');
+        } catch (e) {
+          debugPrint('Error creating/sending renegotiation offer: $e');
+        }
+      }
+    }
     notifyListeners();
   }
 

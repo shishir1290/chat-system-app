@@ -413,10 +413,44 @@ class WebRTCService {
     }
   }
 
-  void toggleVideo() {
+  Future<void> toggleVideo() async {
     if (_localStream != null) {
       final videoTracks = _localStream!.getVideoTracks();
-      if (videoTracks.isNotEmpty) {
+      if (videoTracks.isEmpty) {
+        // Audio-only call dynamically activating camera
+        try {
+          await Permission.camera.request();
+          final videoStream = await navigator.mediaDevices.getUserMedia({
+            'audio': false,
+            'video': {
+              'facingMode': 'user',
+              'width': {'ideal': 1280},
+              'height': {'ideal': 720},
+              'frameRate': {'ideal': 30},
+            },
+          });
+          if (videoStream.getVideoTracks().isNotEmpty) {
+            final newTrack = videoStream.getVideoTracks().first;
+            await _localStream!.addTrack(newTrack);
+            _localRenderer.srcObject = _localStream;
+            _isVideoOff = false;
+
+            // Attach new video track to all active peer connections
+            for (final pc in _peerConnections.values) {
+              try {
+                final senders = await pc.getSenders();
+                if (!senders.any((s) => s.track?.id == newTrack.id)) {
+                  await pc.addTrack(newTrack, _localStream!);
+                }
+              } catch (e) {
+                debugPrint('Error adding video track to PC: $e');
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error enabling camera in audio call: $e');
+        }
+      } else {
         final enabled = videoTracks[0].enabled;
         videoTracks[0].enabled = !enabled;
         _isVideoOff = !videoTracks[0].enabled;
