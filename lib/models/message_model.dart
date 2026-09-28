@@ -113,18 +113,21 @@ class MessageModel {
     List<FileAttachment> parsedFiles = [];
     if (json['files'] != null && json['files'] is List) {
       parsedFiles = (json['files'] as List)
-          .map((f) => FileAttachment.fromJson(f as Map<String, dynamic>))
+          .map((f) => f is Map
+              ? FileAttachment.fromJson(Map<String, dynamic>.from(f))
+              : null)
+          .whereType<FileAttachment>()
           .toList();
     }
 
     SenderInfo? parsedSender;
-    if (json['sender'] != null && json['sender'] is Map<String, dynamic>) {
-      parsedSender = SenderInfo.fromJson(json['sender']);
+    if (json['sender'] != null && json['sender'] is Map) {
+      parsedSender = SenderInfo.fromJson(Map<String, dynamic>.from(json['sender'] as Map));
     }
 
     MessageModel? parsedReplay;
-    if (json['replay_message'] != null && json['replay_message'] is Map<String, dynamic>) {
-      parsedReplay = MessageModel.fromJson(json['replay_message']);
+    if (json['replay_message'] != null && json['replay_message'] is Map) {
+      parsedReplay = MessageModel.fromJson(Map<String, dynamic>.from(json['replay_message'] as Map));
     }
 
     return MessageModel(

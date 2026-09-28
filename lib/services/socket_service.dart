@@ -104,9 +104,19 @@ class SocketService {
     // Chat Listeners
     _socket!.on('new_message', (data) => _newMessageController.add(data));
     _socket!.on('new_message_notification', (data) => _newMessageController.add(data));
+    _socket!.on('message', (data) => _newMessageController.add(data));
+    _socket!.on('message:new', (data) => _newMessageController.add(data));
     _socket!.on('message_edited', (data) => _messageEditedController.add(data));
+    _socket!.on('message_updated', (data) => _messageEditedController.add(data));
+    _socket!.on('message:edited', (data) => _messageEditedController.add(data));
+    _socket!.on('message:updated', (data) => _messageEditedController.add(data));
+    _socket!.on('edit_message', (data) => _messageEditedController.add(data));
+    _socket!.on('update_message', (data) => _messageEditedController.add(data));
     _socket!.on('message_deleted', (data) => _messageDeletedController.add(data));
+    _socket!.on('message:deleted', (data) => _messageDeletedController.add(data));
+    _socket!.on('delete_message', (data) => _messageDeletedController.add(data));
     _socket!.on('message_read', (data) => _messageReadController.add(data));
+    _socket!.on('message:read', (data) => _messageReadController.add(data));
     _socket!.on('typing', (data) => _typingController.add(data));
     _socket!.on('room_created', (data) => _roomUpdatedController.add(data));
     _socket!.on('room_updated', (data) => _roomUpdatedController.add(data));

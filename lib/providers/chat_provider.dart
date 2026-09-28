@@ -71,19 +71,25 @@ class ChatProvider extends ChangeNotifier {
   void _handleIncomingMessage(dynamic data) {
     if (data == null) return;
     try {
-      final msgMap = data is Map ? (data['message'] ?? data) : null;
-      if (msgMap is Map<String, dynamic>) {
+      final rawMap = data is Map ? (data['message'] ?? data['data'] ?? data) : null;
+      if (rawMap is Map) {
+        final msgMap = Map<String, dynamic>.from(rawMap);
         final message = MessageModel.fromJson(msgMap);
-        final roomId = message.roomId;
+        final roomId = message.roomId.isNotEmpty ? message.roomId : (_activeRoom?.id ?? '');
 
-        // Insert into room messages if loaded
-        if (!_roomMessages.containsKey(roomId)) {
-          _roomMessages[roomId] = [];
-        }
+        if (roomId.isNotEmpty) {
+          // Insert into room messages if loaded
+          if (!_roomMessages.containsKey(roomId)) {
+            _roomMessages[roomId] = [];
+          }
 
-        final list = _roomMessages[roomId]!;
-        if (!list.any((m) => m.id == message.id)) {
-          list.add(message);
+          final list = _roomMessages[roomId]!;
+          final existingIdx = list.indexWhere((m) => m.id == message.id);
+          if (existingIdx != -1) {
+            list[existingIdx] = message;
+          } else {
+            list.add(message);
+          }
         }
 
         // Update last message in room list
@@ -121,16 +127,44 @@ class ChatProvider extends ChangeNotifier {
   void _handleEditedMessage(dynamic data) {
     if (data == null) return;
     try {
-      final msgMap = data is Map ? (data['message'] ?? data) : null;
-      if (msgMap is Map<String, dynamic>) {
+      final rawMap = data is Map ? (data['message'] ?? data['data'] ?? data) : null;
+      if (rawMap is Map) {
+        final msgMap = Map<String, dynamic>.from(rawMap);
         final message = MessageModel.fromJson(msgMap);
-        final list = _roomMessages[message.roomId];
-        if (list != null) {
-          final idx = list.indexWhere((m) => m.id == message.id);
-          if (idx != -1) {
-            list[idx] = message;
-            notifyListeners();
+        final roomId = message.roomId.isNotEmpty ? message.roomId : (_activeRoom?.id ?? '');
+
+        // Update in room messages if cached
+        final targetRoomIds = [
+          if (message.roomId.isNotEmpty) message.roomId,
+          if (_activeRoom != null && _activeRoom!.id.isNotEmpty) _activeRoom!.id,
+        ];
+
+        bool updatedInList = false;
+        for (final rId in targetRoomIds) {
+          final list = _roomMessages[rId];
+          if (list != null) {
+            final idx = list.indexWhere((m) => m.id == message.id);
+            if (idx != -1) {
+              list[idx] = message;
+              updatedInList = true;
+            }
           }
+        }
+
+        // Update last message in room sidebar if matched
+        final roomIndex = _rooms.indexWhere((r) => r.id == roomId);
+        if (roomIndex != -1) {
+          final room = _rooms[roomIndex];
+          if (room.lastMessage?.id == message.id) {
+            _rooms[roomIndex] = room.copyWith(
+              lastMessage: message,
+              updatedAt: DateTime.now(),
+            );
+          }
+        }
+
+        if (updatedInList || roomIndex != -1) {
+          notifyListeners();
         }
       }
     } catch (e) {
