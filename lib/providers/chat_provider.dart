@@ -194,14 +194,42 @@ class ChatProvider extends ChangeNotifier {
     if (data == null) return;
     try {
       final roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
-      if (roomId != null) {
+      final readerId = data['reader_id']?.toString() ?? data['readerId']?.toString();
+      final rawMsgIds = data['message_ids'] ?? data['messageIds'];
+      final List<String> msgIds = [];
+      if (rawMsgIds is List) {
+        for (final id in rawMsgIds) {
+          if (id != null) msgIds.add(id.toString());
+        }
+      }
+
+      if (roomId != null && roomId.isNotEmpty) {
+        // 1. Update cached messages in room
         final list = _roomMessages[roomId];
         if (list != null) {
           for (int i = 0; i < list.length; i++) {
-            list[i] = list[i].copyWith(isRead: true);
+            if (msgIds.isEmpty || msgIds.contains(list[i].id)) {
+              list[i] = list[i].copyWith(isRead: true);
+            }
           }
-          notifyListeners();
         }
+
+        // 2. Update room in sidebar
+        final roomIndex = _rooms.indexWhere((r) => r.id == roomId);
+        if (roomIndex != -1) {
+          final room = _rooms[roomIndex];
+          var updatedLastMsg = room.lastMessage;
+          if (updatedLastMsg != null && (msgIds.isEmpty || msgIds.contains(updatedLastMsg.id))) {
+            updatedLastMsg = updatedLastMsg.copyWith(isRead: true);
+          }
+          final newUnread = (readerId != null && readerId == _currentUserId) ? 0 : room.unreadCount;
+          _rooms[roomIndex] = room.copyWith(
+            lastMessage: updatedLastMsg,
+            unreadCount: newUnread,
+          );
+        }
+
+        notifyListeners();
       }
     } catch (e) {
       debugPrint('Error handling read receipts: $e');
@@ -302,6 +330,7 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> markRoomAsRead(String roomId) async {
     try {
+      _socketService.emitMarkRead(roomId);
       await _messageService.markAsRead(roomId, []);
       final roomIndex = _rooms.indexWhere((r) => r.id == roomId);
       if (roomIndex != -1) {

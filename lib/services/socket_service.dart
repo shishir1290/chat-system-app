@@ -205,11 +205,22 @@ class SocketService {
     });
   }
 
+  void emitMarkRead(String roomId, {List<String>? messageIds}) {
+    _socket?.emit('mark_read', {
+      'room_id': roomId,
+      if (messageIds != null && messageIds.isNotEmpty) 'message_ids': messageIds,
+    });
+  }
+
   void emitCallUser(Map<String, dynamic> payload) {
     // Canonical call setup event. Do not emit the same SDP under several
     // aliases: a relay may forward each alias and the answerer can receive
     // duplicate offers.
     _socket?.emit('call_user', payload);
+  }
+
+  void emitCallOffer(Map<String, dynamic> payload) {
+    _socket?.emit('call_offer', payload);
   }
 
   void emitAnswerCall(Map<String, dynamic> payload) {

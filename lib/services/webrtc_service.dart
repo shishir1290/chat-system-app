@@ -10,6 +10,7 @@ class WebRTCService {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
   final Map<String, RTCPeerConnection> _peerConnections = {};
+  final Map<String, List<RTCIceCandidate>> _candidateQueues = {};
 
   bool _isAudioMuted = false;
   bool _isVideoOff = false;
@@ -229,6 +230,7 @@ class WebRTCService {
       if (sdp.isNotEmpty && sdp != 'null' && sdp != '<nil>') {
         try {
           await pc.setRemoteDescription(RTCSessionDescription(sdp, type));
+          await processQueuedCandidates(peerId);
           debugPrint('✅ Remote offer set successfully for $peerId');
         } catch (e) {
           debugPrint('Warning setting remote description in createAnswer: $e');
@@ -312,6 +314,7 @@ class WebRTCService {
             sigState == RTCSignalingState.RTCSignalingStateHaveRemoteOffer ||
             sigState == RTCSignalingState.RTCSignalingStateStable) {
           await pc.setRemoteDescription(RTCSessionDescription(sdp, type));
+          await processQueuedCandidates(peerId);
           debugPrint('✅ Remote description ($type) set successfully for $peerId');
         } else {
           debugPrint('⚠️ setRemoteAnswer skipped: sigState=$sigState');
@@ -321,6 +324,7 @@ class WebRTCService {
         // Retry once — sometimes the state transitions during async
         try {
           await pc.setRemoteDescription(RTCSessionDescription(sdp, type));
+          await processQueuedCandidates(peerId);
           debugPrint('✅ Remote description ($type) set on retry for $peerId');
         } catch (retryE) {
           debugPrint('❌ Retry also failed: $retryE');
@@ -368,11 +372,33 @@ class WebRTCService {
         }
 
         if (candStr.isNotEmpty) {
-          await pc.addCandidate(RTCIceCandidate(candStr, sdpMid, sdpMLineIndex));
+          final cand = RTCIceCandidate(candStr, sdpMid, sdpMLineIndex);
+          final remoteDesc = await pc.getRemoteDescription();
+          if (remoteDesc != null) {
+            await pc.addCandidate(cand);
+          } else {
+            _candidateQueues.putIfAbsent(peerId, () => []).add(cand);
+          }
         }
       }
     } catch (e) {
       debugPrint('Error adding ICE candidate: $e');
+    }
+  }
+
+  Future<void> processQueuedCandidates(String peerId) async {
+    final pc = _peerConnections[peerId];
+    final queue = _candidateQueues[peerId];
+    if (pc != null && queue != null && queue.isNotEmpty) {
+      final list = List<RTCIceCandidate>.from(queue);
+      _candidateQueues.remove(peerId);
+      for (final cand in list) {
+        try {
+          await pc.addCandidate(cand);
+        } catch (e) {
+          debugPrint('Error processing queued ICE candidate: $e');
+        }
+      }
     }
   }
 
@@ -408,6 +434,7 @@ class WebRTCService {
   }
 
   Future<void> closePeer(String peerId) async {
+    _candidateQueues.remove(peerId);
     if (_peerConnections.containsKey(peerId)) {
       await _peerConnections[peerId]?.close();
       _peerConnections.remove(peerId);
@@ -419,6 +446,7 @@ class WebRTCService {
   }
 
   Future<void> cleanUp() async {
+    _candidateQueues.clear();
     final pcs = _peerConnections.values.toList();
     _peerConnections.clear();
     for (final pc in pcs) {

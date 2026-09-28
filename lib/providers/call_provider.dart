@@ -22,6 +22,7 @@ class CallProvider extends ChangeNotifier {
   String? _targetUserName;
   String? _targetUserAvatar;
   bool _isGroupCall = false;
+  bool _isCaller = false;
   UserModel? _currentUser;
 
   MessageModel? _currentCallMessage;
@@ -56,6 +57,7 @@ class CallProvider extends ChangeNotifier {
   String? get targetUserName => _targetUserName;
   String? get targetUserAvatar => _targetUserAvatar;
   bool get isGroupCall => _isGroupCall;
+  bool get isCaller => _isCaller;
 
   RTCVideoRenderer get localRenderer => _webrtcService.localRenderer;
   Map<String, RTCVideoRenderer> get remoteRenderers => _webrtcService.remoteRenderers;
@@ -143,12 +145,9 @@ class CallProvider extends ChangeNotifier {
           'sdp': candidate.candidate,
         };
 
-        // 1-second delay for sharing ICE candidates so receiver has time to setup remote description
-        Future.delayed(const Duration(seconds: 1), () {
-          if (_callStatus != CallStatus.idle) {
-            _socketService.emitIceCandidate(payload);
-          }
-        });
+        if (_callStatus != CallStatus.idle) {
+          _socketService.emitIceCandidate(payload);
+        }
       },
       onAddStream: (stream) {
         debugPrint('📺 onAddStream fired for $peerId - stream has ${stream.getVideoTracks().length} video tracks');
@@ -199,6 +198,7 @@ class CallProvider extends ChangeNotifier {
     _targetUserName = targetName;
     _targetUserAvatar = targetAvatar;
     _isGroupCall = isGroup;
+    _isCaller = true;
     _callConnectedTime = null;
     _wasCallConnected = false;
     _currentCallMessage = null;
@@ -268,21 +268,22 @@ class CallProvider extends ChangeNotifier {
 
   void _handleIncomingCall(dynamic data) {
     if (data == null) return;
-    // Ignore our own outgoing call events echoed back
+    // If we are already calling or connected, ignore incoming call to prevent loop
     if (_callStatus == CallStatus.calling || _callStatus == CallStatus.connected) {
-      // Check if this is from ourselves
-      if (data is Map) {
-        final fromId = data['caller_id']?.toString() ??
-            data['callerId']?.toString() ??
-            data['from_id']?.toString() ??
-            data['from']?.toString();
-        if (fromId == _currentUser?.id) return;
-      }
+      debugPrint('📞 Ignoring incoming_call because call is already in progress ($_callStatus)');
+      return;
     }
 
     try {
       final map = data is Map ? Map<String, dynamic>.from(data) : null;
       if (map != null) {
+        final fromId = map['caller_id']?.toString() ??
+            map['callerId']?.toString() ??
+            map['from_id']?.toString() ??
+            map['from']?.toString();
+        if (fromId == _currentUser?.id) return;
+
+        _isCaller = false;
         _incomingCall = IncomingCallData.fromJson(map);
         _callStatus = CallStatus.incoming;
         _callType = _incomingCall!.isVideo ? CallType.video : CallType.audio;
@@ -308,6 +309,7 @@ class CallProvider extends ChangeNotifier {
     // Don't set to connected yet — wait for actual WebRTC connection
     _callStatus = CallStatus.calling;
     _answerInProgress = true;
+    _isCaller = false;
     _activeRoomId = incoming.roomId;
     _targetUserId = incoming.callerId;
     _targetUserName = incoming.callerName;
@@ -557,8 +559,12 @@ class CallProvider extends ChangeNotifier {
       final switchedDevice = map['switched_device'] == true;
       if (uid != null && uid.isNotEmpty && uid != _currentUser?.id) {
         if (_callStatus == CallStatus.calling || _callStatus == CallStatus.connected) {
-          // If the remote user switched devices or we are the caller, send fresh offer
-          if (switchedDevice || _targetUserId == uid) {
+          _callStatus = CallStatus.connected;
+          _wasCallConnected = true;
+          _callConnectedTime ??= DateTime.now();
+
+          // Only send offer if switched_device or if peer connection doesn't exist yet (e.g. group call)
+          if (switchedDevice || (_isCaller && !_webrtcService.peerConnections.containsKey(uid))) {
             try {
               if (_webrtcService.peerConnections.containsKey(uid)) {
                 await _webrtcService.closePeer(uid);
@@ -566,7 +572,7 @@ class CallProvider extends ChangeNotifier {
               await _createPC(uid);
               final offer = await _webrtcService.createOffer(uid);
               final offerMap = offer.toMap();
-              _socketService.emitCallUser({
+              _socketService.emitCallOffer({
                 'room_id': _activeRoomId,
                 'target_user_id': uid,
                 'caller_id': _currentUser?.id ?? '',
@@ -720,6 +726,7 @@ class CallProvider extends ChangeNotifier {
     _targetUserName = null;
     _targetUserAvatar = null;
     _isGroupCall = false;
+    _isCaller = false;
     _currentCallMessage = null;
     _callConnectedTime = null;
     _wasCallConnected = false;
