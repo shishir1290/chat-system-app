@@ -116,23 +116,32 @@ lib/
 
 ### 🤖 Android Release Build
 
-1. **Build Universal APK** (Standard APK for direct device installation / sharing):
+> [!TIP]
+> **Why is the default release APK large (~87 MB)?**
+> `flutter build apk --release` generates a **"FAT APK"** containing native C++ binaries (especially WebRTC) for **all 4 CPU architectures** (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`) in a single bundle.
+> To produce lightweight **~25-30 MB APKs**, use the **Split per-ABI** command below.
+
+1. **Recommended: Optimized Split per-ABI APKs** (~25–30 MB each):
    ```bash
-   flutter build apk --release
+   flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/app/outputs/symbols
+   ```
+   *Outputs*:
+   - `app-arm64-v8a-release.apk` (For 99% of modern Android smartphones)
+   - `app-armeabi-v7a-release.apk` (For older 32-bit Android phones)
+   - `app-x86_64-release.apk` (For 64-bit Emulators / Tablets)
+
+2. **Universal APK** (Single fat APK that installs on any Android device, ~70-80 MB):
+   ```bash
+   flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
    ```
    *Output file*: `build/app/outputs/flutter-apk/app-release.apk`
 
-2. **Build Split per-ABI APKs** (Optimized, smaller APKs for specific CPU architectures like arm64-v8a):
+3. **Google Play App Bundle (AAB)** (Recommended for Play Store — Google automatically serves the smallest APK per device):
    ```bash
-   flutter build apk --release --split-per-abi
-   ```
-   *Output directory*: `build/app/outputs/flutter-apk/`
-
-3. **Build Google Play App Bundle (AAB)** (Required for Google Play Store upload):
-   ```bash
-   flutter build appbundle --release
+   flutter build appbundle --release --obfuscate --split-debug-info=build/app/outputs/symbols
    ```
    *Output file*: `build/app/outputs/bundle/release/app-release.aab`
+
 
 ---
 
