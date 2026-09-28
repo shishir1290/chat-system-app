@@ -111,4 +111,16 @@ class MessageService {
   Future<void> deleteMessage(String messageId) async {
     await _api.delete('/api/v1/chat/messages/messages/$messageId');
   }
+
+  Future<MessageModel> reactToMessage(String messageId, String emoji) async {
+    final response = await _api.post(
+      '/api/v1/chat/messages/messages/$messageId/reaction',
+      data: {'emoji': emoji},
+    );
+    final resData = response.data;
+    if (resData['status'] == true && resData['data'] != null) {
+      return MessageModel.fromJson(resData['data']);
+    }
+    throw Exception(resData['message'] ?? 'Failed to react to message');
+  }
 }

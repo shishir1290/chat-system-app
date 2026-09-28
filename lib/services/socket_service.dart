@@ -197,6 +197,14 @@ class SocketService {
     _socket?.emit('typing', {'room_id': roomId, 'is_typing': isTyping});
   }
 
+  void emitReactMessage(String messageId, String roomId, String emoji) {
+    _socket?.emit('react_message', {
+      'message_id': messageId,
+      'room_id': roomId,
+      'emoji': emoji,
+    });
+  }
+
   void emitCallUser(Map<String, dynamic> payload) {
     // Canonical call setup event. Do not emit the same SDP under several
     // aliases: a relay may forward each alias and the answerer can receive

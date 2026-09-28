@@ -347,6 +347,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               });
                             },
                             onDelete: () => chat.deleteMessage(msg.id),
+                            onReact: (emoji) => chat.reactToMessage(msg.id, emoji),
                           );
                         },
                       ),

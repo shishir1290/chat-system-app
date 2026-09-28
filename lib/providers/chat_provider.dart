@@ -394,6 +394,29 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> reactToMessage(String messageId, String emoji) async {
+    try {
+      if (_activeRoom != null) {
+        _socketService.emitReactMessage(messageId, _activeRoom!.id, emoji);
+      }
+      final updated = await _messageService.reactToMessage(messageId, emoji);
+      if (_activeRoom != null) {
+        final list = _roomMessages[_activeRoom!.id];
+        if (list != null) {
+          final idx = list.indexWhere((m) => m.id == messageId);
+          if (idx != -1) {
+            list[idx] = updated;
+            notifyListeners();
+          }
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error reacting to message: $e');
+      return false;
+    }
+  }
+
   void sendTyping(bool isTyping) {
     if (_activeRoom != null) {
       _socketService.sendTyping(_activeRoom!.id, isTyping);

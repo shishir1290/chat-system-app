@@ -66,6 +66,50 @@ class SenderInfo {
   }
 }
 
+class ReactionModel {
+  final String id;
+  final String messageId;
+  final String userId;
+  final String emoji;
+  final SenderInfo? user;
+  final DateTime? createdAt;
+
+  ReactionModel({
+    required this.id,
+    required this.messageId,
+    required this.userId,
+    required this.emoji,
+    this.user,
+    this.createdAt,
+  });
+
+  factory ReactionModel.fromJson(Map<String, dynamic> json) {
+    SenderInfo? parsedUser;
+    if (json['user'] != null && json['user'] is Map) {
+      parsedUser = SenderInfo.fromJson(Map<String, dynamic>.from(json['user'] as Map));
+    }
+    return ReactionModel(
+      id: json['id']?.toString() ?? '',
+      messageId: json['message_id']?.toString() ?? json['messageId']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
+      emoji: json['emoji']?.toString() ?? '',
+      user: parsedUser,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'message_id': messageId,
+      'user_id': userId,
+      'emoji': emoji,
+      'user': user?.toJson(),
+      'created_at': createdAt?.toIso8601String(),
+    };
+  }
+}
+
 class MessageModel {
   final String id;
   final String roomId;
@@ -83,6 +127,7 @@ class MessageModel {
   final String? replayMessageId;
   final MessageModel? replayMessage;
   final List<FileAttachment> files;
+  final List<ReactionModel> reactions;
   final SenderInfo? sender;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -104,6 +149,7 @@ class MessageModel {
     this.replayMessageId,
     this.replayMessage,
     this.files = const [],
+    this.reactions = const [],
     this.sender,
     this.createdAt,
     this.updatedAt,
@@ -117,6 +163,16 @@ class MessageModel {
               ? FileAttachment.fromJson(Map<String, dynamic>.from(f))
               : null)
           .whereType<FileAttachment>()
+          .toList();
+    }
+
+    List<ReactionModel> parsedReactions = [];
+    if (json['reactions'] != null && json['reactions'] is List) {
+      parsedReactions = (json['reactions'] as List)
+          .map((r) => r is Map
+              ? ReactionModel.fromJson(Map<String, dynamic>.from(r))
+              : null)
+          .whereType<ReactionModel>()
           .toList();
     }
 
@@ -147,6 +203,7 @@ class MessageModel {
       replayMessageId: json['replay_message_id']?.toString() ?? json['replayMessageId']?.toString(),
       replayMessage: parsedReplay,
       files: parsedFiles,
+      reactions: parsedReactions,
       sender: parsedSender,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
@@ -158,6 +215,7 @@ class MessageModel {
       'id': id,
       'room_id': roomId,
       'sender_id': senderId,
+      'reactions': reactions.map((r) => r.toJson()).toList(),
       'message': message,
       'is_read': isRead,
       'is_deleted': isDeleted,
@@ -192,6 +250,7 @@ class MessageModel {
     String? replayMessageId,
     MessageModel? replayMessage,
     List<FileAttachment>? files,
+    List<ReactionModel>? reactions,
     SenderInfo? sender,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -213,6 +272,7 @@ class MessageModel {
       replayMessageId: replayMessageId ?? this.replayMessageId,
       replayMessage: replayMessage ?? this.replayMessage,
       files: files ?? this.files,
+      reactions: reactions ?? this.reactions,
       sender: sender ?? this.sender,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
