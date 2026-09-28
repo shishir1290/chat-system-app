@@ -8,7 +8,7 @@ void main() {
   testWidgets('NexoraApp initialization test', (WidgetTester tester) async {
     await tester.pumpWidget(const NexoraApp());
 
-    final materialApp = tester.element(find.byType(NexoraApp).first);
+    final materialApp = tester.element(find.byType(MaterialApp));
     final callProvider = Provider.of<CallProvider>(materialApp, listen: false);
     await callProvider.initialize(
       UserModel(
