@@ -50,9 +50,15 @@ class AppConfig {
   static String getFullMediaUrl(String? path) {
     if (path == null || path.isEmpty) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) {
+      if (path.contains('/uploads/') && !path.contains('/api/v1/uploads/')) {
+        return path.replaceFirst('/uploads/', '/api/v1/uploads/');
+      }
       return path;
     }
-    final cleanPath = path.startsWith('/') ? path : '/$path';
+    var cleanPath = path.startsWith('/') ? path : '/$path';
+    if (cleanPath.startsWith('/uploads/')) {
+      cleanPath = '/api/v1$cleanPath';
+    }
     return '$apiUrl$cleanPath';
   }
 }
