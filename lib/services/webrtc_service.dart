@@ -42,13 +42,10 @@ class WebRTCService {
         'audio': true,
         'video': isVideo
             ? {
-                'mandatory': {
-                  'minWidth': '640',
-                  'minHeight': '480',
-                  'minFrameRate': '30',
-                },
                 'facingMode': 'user',
-                'optional': [],
+                'width': {'ideal': 1280},
+                'height': {'ideal': 720},
+                'frameRate': {'ideal': 30},
               }
             : false,
       };

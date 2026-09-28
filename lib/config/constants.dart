@@ -19,9 +19,9 @@ class AppConfig {
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
       {'urls': 'stun:stun2.l.google.com:19302'},
-      {'urls': 'stun:74.125.197.127:19302'},
-      {'urls': 'stun:142.250.180.127:19302'},
-      {'urls': 'stun:173.194.202.127:19302'},
+      // {'urls': 'stun:74.125.197.127:19302'},
+      // {'urls': 'stun:142.250.180.127:19302'},
+      // {'urls': 'stun:173.194.202.127:19302'},
       {'urls': 'stun:global.stun.twilio.com:3478'},
       {
         'urls': [

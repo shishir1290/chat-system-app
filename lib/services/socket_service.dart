@@ -195,6 +195,9 @@ class SocketService {
     _socket?.emit('call_user', payload);
     _socket?.emit('call:incoming', payload);
     _socket?.emit('incoming_call', payload);
+    _socket?.emit('call_offer', payload);
+    _socket?.emit('call:offer', payload);
+    _socket?.emit('offer', payload);
   }
 
   void emitAnswerCall(Map<String, dynamic> payload) {

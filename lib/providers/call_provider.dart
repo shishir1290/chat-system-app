@@ -86,16 +86,41 @@ class CallProvider extends ChangeNotifier {
     _userLeftSub = _socketService.userLeftCallStream.listen(_handleUserLeftCall);
   }
 
+  String _resolvePeerId(Map map) {
+    for (final key in [
+      'callee_id',
+      'calleeId',
+      'from_id',
+      'from_user_id',
+      'from',
+      'userId',
+      'user_id',
+      'target_user_id',
+      'targetUserId',
+      'caller_id',
+      'callerId',
+    ]) {
+      final val = map[key]?.toString();
+      if (val != null && val.isNotEmpty && val != _currentUser?.id) {
+        return val;
+      }
+    }
+    return _targetUserId ?? '';
+  }
+
   /// Helper to create a peer connection with standard callbacks
   Future<RTCPeerConnection> _createPC(String peerId) async {
     return await _webrtcService.createPeerConnectionInstance(
       peerId: peerId,
       onIceCandidate: (candidate) {
         final candMap = candidate.toMap();
-        _socketService.emitIceCandidate({
+        final payload = {
           'target_user_id': peerId,
           'targetUserId': peerId,
-          'caller_id': peerId,
+          'caller_id': _currentUser?.id ?? '',
+          'callerId': _currentUser?.id ?? '',
+          'callee_id': peerId,
+          'calleeId': peerId,
           'to': peerId,
           'to_user_id': peerId,
           'from_id': _currentUser?.id ?? '',
@@ -105,9 +130,18 @@ class CallProvider extends ChangeNotifier {
           'room_id': _activeRoomId,
           'roomId': _activeRoomId,
           'candidate': candMap,
+          'signal': {'candidate': candMap},
+          'signalData': {'candidate': candMap},
           'sdpMid': candidate.sdpMid,
           'sdpMLineIndex': candidate.sdpMLineIndex,
           'sdp': candidate.candidate,
+        };
+
+        // 1-second delay for sharing ICE candidates so receiver has time to setup remote description
+        Future.delayed(const Duration(seconds: 1), () {
+          if (_callStatus != CallStatus.idle) {
+            _socketService.emitIceCandidate(payload);
+          }
         });
       },
       onAddStream: (stream) {
@@ -189,6 +223,7 @@ class CallProvider extends ChangeNotifier {
       final offer = await _webrtcService.createOffer(targetUserId);
       debugPrint('📤 Sending offer to $targetUserId');
 
+      final offerMap = offer.toMap();
       _socketService.emitCallUser({
         'room_id': roomId,
         'roomId': roomId,
@@ -205,7 +240,9 @@ class CallProvider extends ChangeNotifier {
         'is_video': isVideo,
         'isVideo': isVideo,
         'type': isVideo ? 'video' : 'audio',
-        'offer': offer.toMap(),
+        'offer': offerMap,
+        'signal': offerMap,
+        'signalData': offerMap,
         'sdp': offer.sdp,
         'caller_name': _currentUser?.name ?? 'User',
         'caller_avatar': _currentUser?.avatar ?? '',
@@ -371,18 +408,12 @@ class CallProvider extends ChangeNotifier {
   Future<void> _handleCallOffer(dynamic data) async {
     if (data is Map) {
       final map = Map<String, dynamic>.from(data);
-      final fromId = map['from_id']?.toString() ??
-          map['from_user_id']?.toString() ??
-          map['caller_id']?.toString() ??
-          map['callerId']?.toString() ??
-          map['userId']?.toString() ??
-          map['from']?.toString() ??
-          _targetUserId;
+      final fromId = _resolvePeerId(map);
       final offer = map['offer'] ?? map['signal'] ?? map['signalData'] ?? map['sdp'];
 
       debugPrint('📨 _handleCallOffer: fromId=$fromId, hasOffer=${offer != null}, status=$_callStatus, answerInProgress=$_answerInProgress');
 
-      if (fromId != null && offer != null) {
+      if (fromId.isNotEmpty && offer != null) {
         // If we are still in incoming ringing state, store offer for answerCall()
         if (_callStatus == CallStatus.incoming && _incomingCall != null) {
           _incomingCall = IncomingCallData(
@@ -456,19 +487,12 @@ class CallProvider extends ChangeNotifier {
   Future<void> _handleCallAnswered(dynamic data) async {
     if (data is Map) {
       final map = Map<String, dynamic>.from(data);
-      final fromId = map['callee_id']?.toString() ??
-          map['from_id']?.toString() ??
-          map['from_user_id']?.toString() ??
-          map['caller_id']?.toString() ??
-          map['callerId']?.toString() ??
-          map['userId']?.toString() ??
-          map['from']?.toString() ??
-          _targetUserId;
+      final fromId = _resolvePeerId(map);
       final answer = map['answer'] ?? map['signal'] ?? map['signalData'] ?? map['sdp'];
 
       debugPrint('📨 _handleCallAnswered: fromId=$fromId, hasAnswer=${answer != null}');
 
-      if (fromId != null && answer != null) {
+      if (fromId.isNotEmpty && answer != null) {
         // Ensure peer connection exists for this peer
         if (!_webrtcService.peerConnections.containsKey(fromId) && fromId != _currentUser?.id) {
           debugPrint('⚠️ No PC for $fromId when answer arrived, creating one...');
@@ -497,16 +521,10 @@ class CallProvider extends ChangeNotifier {
   Future<void> _handleIceCandidate(dynamic data) async {
     if (data is Map) {
       final map = Map<String, dynamic>.from(data);
-      final fromId = map['from_id']?.toString() ??
-          map['from_user_id']?.toString() ??
-          map['caller_id']?.toString() ??
-          map['callerId']?.toString() ??
-          map['userId']?.toString() ??
-          map['from']?.toString() ??
-          _targetUserId;
-      final candidate = map['candidate'] ?? map;
+      final fromId = _resolvePeerId(map);
+      final candidate = map['candidate'] ?? map['signal']?['candidate'] ?? map['signalData']?['candidate'] ?? map;
 
-      if (fromId != null && candidate != null) {
+      if (fromId.isNotEmpty && candidate != null) {
         // If peer connection doesn't exist yet, buffer the candidate
         if (!_webrtcService.peerConnections.containsKey(fromId) && fromId != _currentUser?.id) {
           debugPrint('🧊 Buffering ICE candidate for $fromId (no PC yet)');
