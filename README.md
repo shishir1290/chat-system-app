@@ -98,5 +98,60 @@ lib/
    ```
 
 3. **Backend Configuration**:
-   - Default backend endpoints are configured to `http://10.81.100.38:9080` / `http://localhost:8080` in [`lib/config/constants.dart`](lib/config/constants.dart).
-   - You can also change the server endpoint dynamically at runtime from **Profile & Settings > Backend API & Socket Endpoint**.
+   - Backend endpoints are loaded dynamically from [`.env`](.env) with fallback to [`lib/config/constants.dart`](lib/config/constants.dart):
+     ```env
+     API_URL=https://195.35.6.141
+     SOCKET_URL=https://195.35.6.141
+     ```
+
+4. **Generate App Launcher Icons**:
+   - If you update [`assets/icon/app_icon.png`](assets/icon/app_icon.png), regenerate the Android & iOS launcher icons with:
+     ```bash
+     dart run flutter_launcher_icons
+     ```
+
+---
+
+## 📦 Building for Production (Release)
+
+### 🤖 Android Release Build
+
+1. **Build Universal APK** (Standard APK for direct device installation / sharing):
+   ```bash
+   flutter build apk --release
+   ```
+   *Output file*: `build/app/outputs/flutter-apk/app-release.apk`
+
+2. **Build Split per-ABI APKs** (Optimized, smaller APKs for specific CPU architectures like arm64-v8a):
+   ```bash
+   flutter build apk --release --split-per-abi
+   ```
+   *Output directory*: `build/app/outputs/flutter-apk/`
+
+3. **Build Google Play App Bundle (AAB)** (Required for Google Play Store upload):
+   ```bash
+   flutter build appbundle --release
+   ```
+   *Output file*: `build/app/outputs/bundle/release/app-release.aab`
+
+---
+
+### 🍏 iOS Release Build (macOS with Xcode required)
+
+1. **Build iOS Release Runner**:
+   ```bash
+   flutter build ios --release
+   ```
+
+2. **Build iOS IPA / Archive** (For TestFlight & App Store distribution):
+   ```bash
+   flutter build ipa --release
+   ```
+   *Output directory*: `build/ios/archive/` & `build/ios/ipa/`
+
+3. **Open in Xcode for Manual Signing & Archiving**:
+   ```bash
+   open ios/Runner.xcworkspace
+   ```
+   - In Xcode: Go to **Product > Archive** to validate and upload to App Store Connect / TestFlight.
+

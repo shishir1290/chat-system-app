@@ -1,16 +1,28 @@
-class AppConfig {
-  // Default API and Socket backend endpoints from environment with fallback
-  static const String defaultApiUrl = String.fromEnvironment(
-    'API_URL',
-    defaultValue: 'http://10.81.100.38:9080',
-  );
-  static const String defaultSocketUrl = String.fromEnvironment(
-    'SOCKET_URL',
-    defaultValue: 'http://10.81.100.38:9080',
-  );
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-  static String apiUrl = defaultApiUrl;
-  static String socketUrl = defaultSocketUrl;
+class AppConfig {
+  // Default API and Socket backend endpoints from .env with fallback
+  static String get defaultApiUrl =>
+      dotenv.maybeGet('API_URL') ??
+      const String.fromEnvironment(
+        'API_URL',
+        defaultValue: 'https://195.35.6.141',
+      );
+
+  static String get defaultSocketUrl =>
+      dotenv.maybeGet('SOCKET_URL') ??
+      const String.fromEnvironment(
+        'SOCKET_URL',
+        defaultValue: 'https://195.35.6.141',
+      );
+
+  static String _apiUrl = '';
+  static String get apiUrl => _apiUrl.isNotEmpty ? _apiUrl : defaultApiUrl;
+  static set apiUrl(String val) => _apiUrl = val;
+
+  static String _socketUrl = '';
+  static String get socketUrl => _socketUrl.isNotEmpty ? _socketUrl : defaultSocketUrl;
+  static set socketUrl(String val) => _socketUrl = val;
 
   static const String apiVersion = '/api/v1';
 

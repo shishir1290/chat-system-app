@@ -163,6 +163,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _isLoading = false;
     _user = null;
     _token = null;
     await _apiService.clearToken();

@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 
@@ -48,6 +50,14 @@ class ApiService {
       ),
     );
 
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.badCertificateCallback = (cert, host, port) => true;
+        return client;
+      },
+    );
+
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -89,15 +99,12 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.accessToken);
     await prefs.remove(StorageKeys.userProfile);
+    await prefs.remove(StorageKeys.serverUrl);
   }
 
   Future<String?> loadSavedToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(StorageKeys.accessToken);
-    final savedServer = prefs.getString(StorageKeys.serverUrl);
-    if (savedServer != null && savedServer.isNotEmpty) {
-      updateBaseUrl(savedServer);
-    }
     return _token;
   }
 
