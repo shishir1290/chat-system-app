@@ -45,6 +45,8 @@ class CallProvider extends ChangeNotifier {
   StreamSubscription? _endedSub;
   StreamSubscription? _userJoinedSub;
   StreamSubscription? _userLeftSub;
+  StreamSubscription? _transferredSub;
+  StreamSubscription? _answeredElsewhereSub;
 
   CallStatus get callStatus => _callStatus;
   CallType get callType => _callType;
@@ -75,6 +77,8 @@ class CallProvider extends ChangeNotifier {
     _endedSub?.cancel();
     _userJoinedSub?.cancel();
     _userLeftSub?.cancel();
+    _transferredSub?.cancel();
+    _answeredElsewhereSub?.cancel();
 
     _incomingSub = _socketService.incomingCallStream.listen(_handleIncomingCall);
     _offerSub = _socketService.callOfferStream.listen(_handleCallOffer);
@@ -84,6 +88,8 @@ class CallProvider extends ChangeNotifier {
     _endedSub = _socketService.callEndedStream.listen(_handleCallEnded);
     _userJoinedSub = _socketService.userJoinedCallStream.listen(_handleUserJoinedCall);
     _userLeftSub = _socketService.userLeftCallStream.listen(_handleUserLeftCall);
+    _transferredSub = _socketService.callTransferredStream.listen(_handleCallTransferred);
+    _answeredElsewhereSub = _socketService.callAnsweredElsewhereStream.listen(_handleCallAnsweredElsewhere);
   }
 
   String _resolvePeerId(Map map) {
@@ -544,8 +550,105 @@ class CallProvider extends ChangeNotifier {
     }
   }
 
-  void _handleUserJoinedCall(dynamic data) {
+  Future<void> _handleUserJoinedCall(dynamic data) async {
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      final uid = map['user_id']?.toString() ?? map['userId']?.toString();
+      final switchedDevice = map['switched_device'] == true;
+      if (uid != null && uid.isNotEmpty && uid != _currentUser?.id) {
+        if (_callStatus == CallStatus.calling || _callStatus == CallStatus.connected) {
+          // If the remote user switched devices or we are the caller, send fresh offer
+          if (switchedDevice || _targetUserId == uid) {
+            try {
+              if (_webrtcService.peerConnections.containsKey(uid)) {
+                await _webrtcService.closePeer(uid);
+              }
+              await _createPC(uid);
+              final offer = await _webrtcService.createOffer(uid);
+              final offerMap = offer.toMap();
+              _socketService.emitCallUser({
+                'room_id': _activeRoomId,
+                'target_user_id': uid,
+                'caller_id': _currentUser?.id ?? '',
+                'is_video': _callType == CallType.video,
+                'offer': offerMap,
+                'caller_name': _currentUser?.name ?? 'User',
+                'caller_avatar': _currentUser?.avatar ?? '',
+              });
+            } catch (e) {
+              debugPrint('Error re-negotiating offer on user join: $e');
+            }
+          }
+        }
+      }
+    }
     notifyListeners();
+  }
+
+  void _handleCallTransferred(dynamic data) {
+    debugPrint('📲 Call transferred to another device');
+    endCall(silent: true);
+  }
+
+  void _handleCallAnsweredElsewhere(dynamic data) {
+    if (_callStatus == CallStatus.incoming) {
+      debugPrint('📲 Call answered on another device');
+      _incomingCall = null;
+      _callStatus = CallStatus.idle;
+      notifyListeners();
+    }
+  }
+
+  Future<void> switchCallDevice({
+    required String roomId,
+    required bool isVideo,
+    String? targetUserId,
+    String? targetUserName,
+    String? targetUserAvatar,
+    bool isGroup = false,
+  }) async {
+    _callStatus = CallStatus.calling;
+    _callType = isVideo ? CallType.video : CallType.audio;
+    _activeRoomId = roomId;
+    _targetUserId = targetUserId;
+    _targetUserName = targetUserName;
+    _targetUserAvatar = targetUserAvatar;
+    _isGroupCall = isGroup;
+    _callConnectedTime = DateTime.now();
+    _wasCallConnected = true;
+    _pendingIceCandidates.clear();
+    notifyListeners();
+
+    try {
+      await _webrtcService.initializeRenderers();
+      await _webrtcService.openUserMedia(isVideo);
+
+      _socketService.emitSwitchCallDevice({
+        'room_id': roomId,
+        'user_name': _currentUser?.name ?? 'User',
+        'user_avatar': _currentUser?.avatar ?? '',
+        'is_video': isVideo,
+      });
+
+      if (targetUserId != null && targetUserId.isNotEmpty) {
+        await _createPC(targetUserId);
+        final offer = await _webrtcService.createOffer(targetUserId);
+        _socketService.emitCallUser({
+          'room_id': roomId,
+          'target_user_id': targetUserId,
+          'caller_id': _currentUser?.id ?? '',
+          'is_video': isVideo,
+          'offer': offer.toMap(),
+          'caller_name': _currentUser?.name ?? 'User',
+          'caller_avatar': _currentUser?.avatar ?? '',
+          'is_group': isGroup,
+        });
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error switching call device: $e');
+      endCall();
+    }
   }
 
   void _handleUserLeftCall(dynamic data) {
@@ -637,6 +740,8 @@ class CallProvider extends ChangeNotifier {
     _endedSub?.cancel();
     _userJoinedSub?.cancel();
     _userLeftSub?.cancel();
+    _transferredSub?.cancel();
+    _answeredElsewhereSub?.cancel();
     _webrtcService.cleanUp();
     super.dispose();
   }

@@ -34,6 +34,8 @@ class SocketService {
   final StreamController<dynamic> _userLeftCallController = StreamController<dynamic>.broadcast();
   final StreamController<dynamic> _groupCallStatusController = StreamController<dynamic>.broadcast();
   final StreamController<dynamic> _callEndedController = StreamController<dynamic>.broadcast();
+  final StreamController<dynamic> _callTransferredController = StreamController<dynamic>.broadcast();
+  final StreamController<dynamic> _callAnsweredElsewhereController = StreamController<dynamic>.broadcast();
 
   bool get isConnected => _isConnected;
   Set<String> get onlineUserIds => Set.unmodifiable(_onlineUserIds);
@@ -57,6 +59,8 @@ class SocketService {
   Stream<dynamic> get userLeftCallStream => _userLeftCallController.stream;
   Stream<dynamic> get groupCallStatusStream => _groupCallStatusController.stream;
   Stream<dynamic> get callEndedStream => _callEndedController.stream;
+  Stream<dynamic> get callTransferredStream => _callTransferredController.stream;
+  Stream<dynamic> get callAnsweredElsewhereStream => _callAnsweredElsewhereController.stream;
 
   void connect(String token, {String? myUserId}) {
     if (_socket != null && _socket!.connected) return;
@@ -138,6 +142,8 @@ class SocketService {
     _socket!.on('user_left_call', (data) => _userLeftCallController.add(data));
     _socket!.on('group_call_status', (data) => _groupCallStatusController.add(data));
     _socket!.on('call_ended', (data) => _callEndedController.add(data));
+    _socket!.on('call_transferred_to_another_device', (data) => _callTransferredController.add(data));
+    _socket!.on('call_answered_elsewhere', (data) => _callAnsweredElsewhereController.add(data));
   }
 
   void _handleOnlineUsers(dynamic data) {
@@ -221,6 +227,10 @@ class SocketService {
 
   void emitJoinCall(Map<String, dynamic> payload) {
     _socket?.emit('join_call', payload);
+  }
+
+  void emitSwitchCallDevice(Map<String, dynamic> payload) {
+    _socket?.emit('switch_call_device', payload);
   }
 
   void emitLeaveCall(String roomId) {
