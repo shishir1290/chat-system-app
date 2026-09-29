@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/room_model.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/chat_provider.dart';
-import '../../services/auth_service.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
+import '../../services/services.dart';
 import '../theme/app_theme.dart';
-import 'custom_avatar.dart';
+import 'widgets.dart';
 
 class GroupInfoSheet extends StatefulWidget {
   final ChatRoomModel room;
@@ -20,8 +19,13 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
   final AuthService _authService = AuthService();
 
   void _showAddMemberDialog() async {
+    final chat = context.read<ChatProvider>();
+    final currentRoom = chat.rooms.firstWhere(
+      (r) => r.id == widget.room.id,
+      orElse: () => chat.activeRoom ?? widget.room,
+    );
     final results = await _authService.searchUsers('');
-    final currentMemberIds = widget.room.members.map((m) => m.memberId).toSet();
+    final currentMemberIds = currentRoom.members.map((m) => m.memberId).toSet();
     final nonMembers = results.where((u) => !currentMemberIds.contains(u.id)).toList();
 
     if (!mounted) return;
@@ -91,9 +95,9 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
                       onPressed: selectedIds.isEmpty
                           ? null
                           : () async {
-                              final chat = context.read<ChatProvider>();
+                              final chatProv = context.read<ChatProvider>();
                               Navigator.pop(ctx);
-                              await chat.addMembersToGroup(
+                              await chatProv.addMembersToGroup(
                                 widget.room.id,
                                 selectedIds.toList(),
                               );
@@ -112,9 +116,14 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final chat = context.watch<ChatProvider>();
+    final currentRoom = chat.rooms.firstWhere(
+      (r) => r.id == widget.room.id,
+      orElse: () => chat.activeRoom ?? widget.room,
+    );
     final currentUserId = context.watch<AuthProvider>().user?.id ?? '';
-    final isGroupAdmin = widget.room.members.any((m) => m.memberId == currentUserId && m.isAdmin) ||
-        widget.room.createdById == currentUserId;
+    final isGroupAdmin = currentRoom.members.any((m) => m.memberId == currentUserId && m.isAdmin) ||
+        currentRoom.createdById == currentUserId;
 
     return Container(
       decoration: const BoxDecoration(
@@ -135,19 +144,19 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
           ),
           const SizedBox(height: 16),
           CustomAvatar(
-            name: widget.room.name,
-            avatarUrl: widget.room.avatar,
+            name: currentRoom.name,
+            avatarUrl: currentRoom.avatar,
             size: 72,
             isGroup: true,
           ),
           const SizedBox(height: 12),
           Text(
-            widget.room.name,
+            currentRoom.name,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
-            '${widget.room.members.length} Members',
+            '${currentRoom.members.length} Members',
             style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -171,10 +180,10 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
           Flexible(
             child: ListView.separated(
               shrinkWrap: true,
-              itemCount: widget.room.members.length,
+              itemCount: currentRoom.members.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final member = widget.room.members[index];
+                final member = currentRoom.members[index];
                 final isSelf = member.memberId == currentUserId;
 
                 return ListTile(
@@ -192,7 +201,7 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
                         member.name + (isSelf ? ' (You)' : ''),
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                       ),
-                      if (member.isAdmin || member.memberId == widget.room.createdById) ...[
+                      if (member.isAdmin || member.memberId == currentRoom.createdById) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -216,7 +225,7 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
                           icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.danger, size: 20),
                           onPressed: () async {
                             await context.read<ChatProvider>().removeMemberFromGroup(
-                              widget.room.id,
+                              currentRoom.id,
                               member.memberId,
                             );
                           },
@@ -241,9 +250,9 @@ class _GroupInfoSheetState extends State<GroupInfoSheet> {
               onPressed: () async {
                 Navigator.pop(context);
                 if (isGroupAdmin) {
-                  await context.read<ChatProvider>().deleteRoom(widget.room.id);
+                  await context.read<ChatProvider>().deleteRoom(currentRoom.id);
                 } else {
-                  await context.read<ChatProvider>().removeMemberFromGroup(widget.room.id, currentUserId);
+                  await context.read<ChatProvider>().removeMemberFromGroup(currentRoom.id, currentUserId);
                 }
               },
             ),

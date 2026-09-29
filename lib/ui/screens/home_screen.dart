@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../models/room_model.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/call_provider.dart';
-import '../../providers/chat_provider.dart';
-import '../../providers/socket_provider.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../theme/app_theme.dart';
-import '../widgets/custom_avatar.dart';
-import '../widgets/new_chat_dialog.dart';
-import 'chat_screen.dart';
-import 'profile_screen.dart';
+import '../widgets/widgets.dart';
+import 'screens.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

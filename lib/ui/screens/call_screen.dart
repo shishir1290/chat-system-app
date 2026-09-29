@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
-import '../../models/call_model.dart';
-import '../../providers/call_provider.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../theme/app_theme.dart';
-import '../widgets/custom_avatar.dart';
+import '../widgets/widgets.dart';
 
 class CallScreen extends StatefulWidget {
   const CallScreen({super.key});
@@ -57,78 +57,30 @@ class _CallScreenState extends State<CallScreen> {
 
     final isVideo = call.callType == CallType.video;
     final remoteRenderers = call.remoteRenderers;
-    final hasRemoteVideo = remoteRenderers.isNotEmpty &&
-        isVideo &&
-        remoteRenderers.values.any((r) => r.srcObject != null);
+    final isGroup = call.isGroupCall || remoteRenderers.length > 1;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          // Main Video or Voice Background
-          if (hasRemoteVideo)
-            Positioned.fill(
-              child: RTCVideoView(
-                remoteRenderers.values.firstWhere(
-                  (r) => r.srcObject != null,
-                  orElse: () => remoteRenderers.values.first,
-                ),
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-              ),
-            )
-          else
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [Color(0xFF1E293B), AppColors.background],
-                    radius: 1.0,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CustomAvatar(
-                      name: call.targetUserName ?? 'Participant',
-                      avatarUrl: call.targetUserAvatar,
-                      size: 110,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      call.targetUserName ?? 'Call',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      call.callStatus == CallStatus.connected
-                          ? _formatDuration(_callDurationSeconds)
-                          : call.callStatus == CallStatus.calling
-                              ? 'Connecting...'
-                              : 'Ringing...',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          // Main Video / Voice Call Content
+          Positioned.fill(
+            child: isGroup
+                ? _buildGroupVideoLayout(call, remoteRenderers, isVideo)
+                : _buildSingleVideoLayout(call, remoteRenderers, isVideo),
+          ),
 
           // Top Info Bar
           Positioned(
-            top: 40,
+            top: 44,
             left: 16,
             right: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withAlpha(120),
+                color: Colors.black.withAlpha(140),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white10),
               ),
               child: Row(
                 children: [
@@ -138,19 +90,42 @@ class _CallScreenState extends State<CallScreen> {
                     size: 18,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    call.targetUserName ?? 'Call',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  Expanded(
+                    child: Text(
+                      call.targetUserName ?? (isGroup ? 'Group Call' : 'Call'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                  if (isGroup && remoteRenderers.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.people_alt_rounded, size: 12, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${remoteRenderers.length + 1}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (call.callStatus == CallStatus.connected)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withAlpha(40),
+                        color: AppColors.primary.withAlpha(50),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -167,13 +142,13 @@ class _CallScreenState extends State<CallScreen> {
             ),
           ),
 
-          // Picture-in-Picture Local Camera View
+          // Picture-in-Picture Local Camera View (Shown when in 1-to-1 or when local camera is on)
           if (!call.isVideoOff && call.localRenderer.srcObject != null)
             Positioned(
-              top: 100,
+              top: 108,
               right: 16,
-              width: 110,
-              height: 160,
+              width: isGroup ? 100 : 110,
+              height: isGroup ? 140 : 160,
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
@@ -284,6 +259,210 @@ class _CallScreenState extends State<CallScreen> {
           color: isActive ? Colors.white : AppColors.danger,
           size: 22,
         ),
+      ),
+    );
+  }
+
+  Widget _buildSingleVideoLayout(CallProvider call, Map<String, RTCVideoRenderer> remoteRenderers, bool isVideo) {
+    final hasRemoteVideo = remoteRenderers.isNotEmpty &&
+        isVideo &&
+        remoteRenderers.values.any((r) => r.srcObject != null);
+
+    if (hasRemoteVideo) {
+      final renderer = remoteRenderers.values.firstWhere(
+        (r) => r.srcObject != null,
+        orElse: () => remoteRenderers.values.first,
+      );
+      return RTCVideoView(
+        renderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          colors: [Color(0xFF1E293B), AppColors.background],
+          radius: 1.0,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CustomAvatar(
+            name: call.targetUserName ?? 'Participant',
+            avatarUrl: call.targetUserAvatar,
+            size: 110,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            call.targetUserName ?? 'Call',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            call.callStatus == CallStatus.connected
+                ? _formatDuration(_callDurationSeconds)
+                : call.callStatus == CallStatus.calling
+                    ? 'Connecting...'
+                    : 'Ringing...',
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupVideoLayout(CallProvider call, Map<String, RTCVideoRenderer> remoteRenderers, bool isVideo) {
+    final peers = remoteRenderers.entries.toList();
+
+    if (peers.isEmpty) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            colors: [Color(0xFF1E293B), AppColors.background],
+            radius: 1.0,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CustomAvatar(
+              name: call.targetUserName ?? 'Group Call',
+              avatarUrl: call.targetUserAvatar,
+              size: 100,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              call.targetUserName ?? 'Group Call',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              call.callStatus == CallStatus.connected
+                  ? 'Waiting for participants to join...'
+                  : 'Starting group call...',
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (peers.length == 1) {
+      return _buildSingleVideoLayout(call, remoteRenderers, isVideo);
+    }
+
+    // Grid layout for 2+ participants
+    final crossAxisCount = peers.length <= 2 ? 1 : 2;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 100, bottom: 100, left: 12, right: 12),
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: peers.length == 2 ? 1.3 : 1.0,
+        ),
+        itemCount: peers.length,
+        itemBuilder: (context, index) {
+          final entry = peers[index];
+          final renderer = entry.value;
+          final hasVideo = renderer.srcObject != null &&
+              renderer.srcObject!.getVideoTracks().isNotEmpty &&
+              renderer.srcObject!.getVideoTracks().any((t) => t.enabled);
+
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white12),
+              boxShadow: const [
+                BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 2)),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasVideo && isVideo)
+                    RTCVideoView(
+                      renderer,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    )
+                  else
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CustomAvatar(
+                            name: 'Participant ${index + 1}',
+                            size: 60,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Participant ${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Bottom participant badge
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(160),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            hasVideo ? Icons.videocam_rounded : Icons.mic_rounded,
+                            size: 12,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'User ${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

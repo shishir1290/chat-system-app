@@ -21,6 +21,7 @@ class AppColors {
 
   static const Color online = Color(0xFF10B981);
   static const Color offline = Color(0xFF64748B);
+  static const Color success = Color(0xFF10B981);
   static const Color danger = Color(0xFFEF4444);
   static const Color warning = Color(0xFFF59E0B);
   static const Color info = Color(0xFF3B82F6);
@@ -51,9 +52,8 @@ class AppTheme {
         onPrimary: Colors.black,
         onSurface: AppColors.textPrimary,
       ),
-      textTheme: GoogleFonts.interTextTheme(
-        ThemeData.dark().textTheme,
-      ).apply(
+      textTheme: ThemeData.dark().textTheme.apply(
+        fontFamily: GoogleFonts.inter().fontFamily,
         bodyColor: AppColors.textPrimary,
         displayColor: AppColors.textPrimary,
       ),

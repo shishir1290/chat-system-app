@@ -5,13 +5,9 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../main.dart';
-import '../models/call_model.dart';
-import '../models/message_model.dart';
-import '../models/user_model.dart';
-import '../services/message_service.dart';
-import '../services/socket_service.dart';
-import '../services/webrtc_service.dart';
-import '../ui/screens/call_screen.dart';
+import '../models/models.dart';
+import '../services/services.dart';
+import '../ui/screens/screens.dart';
 
 class CallProvider extends ChangeNotifier {
   final WebRTCService _webrtcService = WebRTCService();
@@ -229,40 +225,69 @@ class CallProvider extends ChangeNotifier {
       await _webrtcService.initializeRenderers();
       await _webrtcService.openUserMedia(isVideo);
 
-      await _createPC(targetUserId);
+      if (isGroup || targetUserId.isEmpty) {
+        // Group Call: emit call_user to room and join_call. Peers will negotiate full-mesh WebRTC.
+        _socketService.emitCallUser({
+          'room_id': roomId,
+          'roomId': roomId,
+          'caller_id': _currentUser?.id ?? '',
+          'callerId': _currentUser?.id ?? '',
+          'from_id': _currentUser?.id ?? '',
+          'user_id': _currentUser?.id ?? '',
+          'is_video': isVideo,
+          'isVideo': isVideo,
+          'type': isVideo ? 'video' : 'audio',
+          'caller_name': _currentUser?.name ?? 'User',
+          'caller_avatar': _currentUser?.avatar ?? '',
+          'room_name': targetName ?? 'Group Call',
+          'is_group': true,
+        });
 
-      final offer = await _webrtcService.createOffer(targetUserId);
-      debugPrint('📤 Sending offer to $targetUserId');
+        _socketService.emitJoinCall({
+          'room_id': roomId,
+          'roomId': roomId,
+          'user_id': _currentUser?.id ?? '',
+          'user_name': _currentUser?.name ?? 'User',
+          'user_avatar': _currentUser?.avatar ?? '',
+          'is_video': isVideo,
+        });
+      } else {
+        // 1-to-1 Call: establish direct peer connection and offer
+        await _createPC(targetUserId);
 
-      final offerMap = offer.toMap();
-      _socketService.emitCallUser({
-        'room_id': roomId,
-        'roomId': roomId,
-        'target_user_id': targetUserId,
-        'targetUserId': targetUserId,
-        'to': targetUserId,
-        'to_user_id': targetUserId,
-        'caller_id': _currentUser?.id ?? '',
-        'callerId': _currentUser?.id ?? '',
-        'from_id': _currentUser?.id ?? '',
-        'from_user_id': _currentUser?.id ?? '',
-        'from': _currentUser?.id ?? '',
-        'user_id': _currentUser?.id ?? '',
-        'is_video': isVideo,
-        'isVideo': isVideo,
-        'type': isVideo ? 'video' : 'audio',
-        'offer': offerMap,
-        'signal': offerMap,
-        'signalData': offerMap,
-        'sdp': offer.sdp,
-        'caller_name': _currentUser?.name ?? 'User',
-        'caller_avatar': _currentUser?.avatar ?? '',
-        'room_name': targetName ?? 'Direct Call',
-        'is_group': isGroup,
-      });
+        final offer = await _webrtcService.createOffer(targetUserId);
+        debugPrint('📤 Sending offer to $targetUserId');
 
-      // Flush any ICE candidates that arrived before PC was ready
-      await _flushPendingIceCandidates(targetUserId);
+        final offerMap = offer.toMap();
+        _socketService.emitCallUser({
+          'room_id': roomId,
+          'roomId': roomId,
+          'target_user_id': targetUserId,
+          'targetUserId': targetUserId,
+          'to': targetUserId,
+          'to_user_id': targetUserId,
+          'caller_id': _currentUser?.id ?? '',
+          'callerId': _currentUser?.id ?? '',
+          'from_id': _currentUser?.id ?? '',
+          'from_user_id': _currentUser?.id ?? '',
+          'from': _currentUser?.id ?? '',
+          'user_id': _currentUser?.id ?? '',
+          'is_video': isVideo,
+          'isVideo': isVideo,
+          'type': isVideo ? 'video' : 'audio',
+          'offer': offerMap,
+          'signal': offerMap,
+          'signalData': offerMap,
+          'sdp': offer.sdp,
+          'caller_name': _currentUser?.name ?? 'User',
+          'caller_avatar': _currentUser?.avatar ?? '',
+          'room_name': targetName ?? 'Direct Call',
+          'is_group': false,
+        });
+
+        // Flush any ICE candidates that arrived before PC was ready
+        await _flushPendingIceCandidates(targetUserId);
+      }
 
       notifyListeners();
     } catch (e) {
@@ -458,6 +483,11 @@ class CallProvider extends ChangeNotifier {
         'roomId': incoming.roomId,
         'target_user_id': callerId,
         'from_id': _currentUser?.id ?? '',
+        'user_id': _currentUser?.id ?? '',
+        'user_name': _currentUser?.name ?? 'User',
+        'user_avatar': _currentUser?.avatar ?? '',
+        'is_video': isVideo,
+        'isVideo': isVideo,
       });
 
       // Flush any ICE candidates that arrived while we were setting up
@@ -468,6 +498,60 @@ class CallProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error answering call: $e');
       _answerInProgress = false;
+    }
+  }
+
+  /// Join an ongoing group call directly from the chat screen or banner
+  Future<void> joinCall({
+    required String roomId,
+    required bool isVideo,
+    String? roomName,
+    String? roomAvatar,
+  }) async {
+    if (_currentUser == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString(StorageKeys.userProfile);
+      final token = prefs.getString(StorageKeys.accessToken);
+      if (userJson != null) {
+        _currentUser = UserModel.fromJson(jsonDecode(userJson));
+      }
+      if (token != null && _currentUser != null && !_socketService.isConnected) {
+        _socketService.connect(token, myUserId: _currentUser!.id);
+      }
+    }
+
+    _callStatus = CallStatus.calling;
+    _callType = isVideo ? CallType.video : CallType.audio;
+    _activeRoomId = roomId;
+    _targetUserId = null;
+    _targetUserName = roomName ?? 'Group Call';
+    _targetUserAvatar = roomAvatar;
+    _isGroupCall = true;
+    _isCaller = false;
+    _callConnectedTime = DateTime.now();
+    _wasCallConnected = true;
+    _currentCallMessage = null;
+    _pendingIceCandidates.clear();
+    notifyListeners();
+
+    try {
+      await _webrtcService.initializeRenderers();
+      await _webrtcService.openUserMedia(isVideo);
+
+      _socketService.emitJoinCall({
+        'room_id': roomId,
+        'roomId': roomId,
+        'user_id': _currentUser?.id ?? '',
+        'user_name': _currentUser?.name ?? 'User',
+        'user_avatar': _currentUser?.avatar ?? '',
+        'is_video': isVideo,
+        'isVideo': isVideo,
+      });
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error joining group call: $e');
+      endCall();
     }
   }
 
@@ -647,8 +731,8 @@ class CallProvider extends ChangeNotifier {
           _wasCallConnected = true;
           _callConnectedTime ??= DateTime.now();
 
-          // Only send offer if switched_device or if peer connection doesn't exist yet (e.g. group call)
-          if (switchedDevice || (_isCaller && !_webrtcService.peerConnections.containsKey(uid))) {
+          // Send offer to newly joined user (for both caller and any existing participants in group calls)
+          if (switchedDevice || !_webrtcService.peerConnections.containsKey(uid)) {
             try {
               if (_webrtcService.peerConnections.containsKey(uid)) {
                 await _webrtcService.closePeer(uid);
@@ -665,6 +749,7 @@ class CallProvider extends ChangeNotifier {
                 'caller_name': _currentUser?.name ?? 'User',
                 'caller_avatar': _currentUser?.avatar ?? '',
               });
+              await _flushPendingIceCandidates(uid);
             } catch (e) {
               debugPrint('Error re-negotiating offer on user join: $e');
             }

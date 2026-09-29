@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../main.dart';
-import '../../providers/call_provider.dart';
-import '../screens/call_screen.dart';
+import '../../providers/providers.dart';
+import '../screens/screens.dart';
 import '../theme/app_theme.dart';
-import 'custom_avatar.dart';
+import 'widgets.dart';
 
 class IncomingCallDialog extends StatelessWidget {
   const IncomingCallDialog({super.key});

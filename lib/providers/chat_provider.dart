@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import '../models/message_model.dart';
-import '../models/room_model.dart';
-import '../services/chat_service.dart';
-import '../services/message_service.dart';
-import '../services/socket_service.dart';
+import '../models/models.dart';
+import '../services/services.dart';
 
 class ChatProvider extends ChangeNotifier {
   final ChatService _chatService = ChatService();
@@ -71,16 +68,54 @@ class ChatProvider extends ChangeNotifier {
     _deleteMsgSub = _socketService.messageDeletedStream.listen(_handleDeletedMessage);
     _readMsgSub = _socketService.messageReadStream.listen(_handleReadMessage);
     _typingSub = _socketService.typingStream.listen(_handleTypingEvent);
-    _roomUpdateSub = _socketService.roomUpdatedStream.listen((_) => loadRooms(silent: true));
+    _roomUpdateSub = _socketService.roomUpdatedStream.listen((data) async {
+      await loadRooms(silent: true);
+      if (_activeRoom != null) {
+        final updated = _rooms.firstWhere(
+          (r) => r.id == _activeRoom!.id,
+          orElse: () => _activeRoom!,
+        );
+        _activeRoom = updated;
+        notifyListeners();
+      }
+    });
     _callEndedSub = _socketService.callEndedStream.listen(_handleCallEndedEvent);
     _callRejectedSub = _socketService.callRejectedStream.listen(_handleCallRejectedEvent);
     _groupCallStatusSub = _socketService.groupCallStatusStream.listen(_handleGroupCallStatusEvent);
+  }
+
+  final Map<String, Map<String, dynamic>> _activeGroupCalls = {};
+
+  bool isGroupCallOngoing(String roomId) {
+    if (_activeGroupCalls[roomId]?['is_active'] == true) return true;
+    final msgs = _roomMessages[roomId];
+    if (msgs != null && msgs.isNotEmpty) {
+      for (final m in msgs.reversed) {
+        if (m.isCallActive) return true;
+      }
+    }
+    return false;
+  }
+
+  Map<String, dynamic>? getGroupCallStatus(String roomId) => _activeGroupCalls[roomId];
+
+  MessageModel? getActiveCallMessage(String roomId) {
+    final msgs = _roomMessages[roomId];
+    if (msgs != null && msgs.isNotEmpty) {
+      for (final m in msgs.reversed) {
+        if (m.isCallActive) return m;
+      }
+    }
+    return null;
   }
 
   void _handleCallEndedEvent(dynamic data) {
     String? roomId;
     if (data is Map) {
       roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
+    }
+    if (roomId != null) {
+      _activeGroupCalls.remove(roomId);
     }
     _deactivateActiveCallMessages(targetRoomId: roomId);
   }
@@ -90,13 +125,29 @@ class ChatProvider extends ChangeNotifier {
     if (data is Map) {
       roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
     }
+    if (roomId != null) {
+      _activeGroupCalls.remove(roomId);
+    }
     _deactivateActiveCallMessages(targetRoomId: roomId, isDeclined: true);
   }
 
   void _handleGroupCallStatusEvent(dynamic data) {
-    if (data is Map && data['is_active'] == false) {
+    if (data is Map) {
       final roomId = data['room_id']?.toString() ?? data['roomId']?.toString();
-      _deactivateActiveCallMessages(targetRoomId: roomId);
+      final isActive = data['is_active'] == true;
+      if (roomId != null && roomId.isNotEmpty) {
+        if (isActive) {
+          _activeGroupCalls[roomId] = {
+            'is_active': true,
+            'is_video': data['is_video'] == true,
+            'participant_count': data['participant_count'] ?? 1,
+          };
+        } else {
+          _activeGroupCalls.remove(roomId);
+          _deactivateActiveCallMessages(targetRoomId: roomId);
+        }
+        notifyListeners();
+      }
     }
   }
 

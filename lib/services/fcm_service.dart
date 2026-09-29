@@ -58,10 +58,10 @@ Future<void> _showCallNotification(Map<String, dynamic> data, FlutterLocalNotifi
 
   final details = NotificationDetails(android: androidDetails);
   await fln.show(
-    8888, // Call notification ID
-    callerName,
-    callType,
-    details,
+    id: 8888, // Call notification ID
+    title: callerName,
+    body: callType,
+    notificationDetails: details,
     payload: jsonEncode(data),
   );
 }
@@ -85,7 +85,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
   const initSettings = InitializationSettings(android: androidInit);
   await fln.initialize(
-    initSettings,
+    settings: initSettings,
     onDidReceiveNotificationResponse: (response) {
       debugPrint('[FLN Background Init] Notification tap: ${response.actionId}');
     },
@@ -95,25 +95,34 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (type == 'CALL_INCOMING') {
     await _showCallNotification(data, fln);
   } else if (type == 'CALL_CANCELLED') {
-    await fln.cancel(8888);
+    await fln.cancel(id: 8888);
   } else if (type == 'NEW_MESSAGE') {
-    final senderName = data['sender_name'] ?? 'Nexora';
-    final body = data['body'] ?? 'New message';
+    // If the message is data-only (no system notification payload), display via local notifications
+    if (message.notification == null) {
+      final senderName = data['sender_name'] ?? 'Nexora';
+      final body = data['body'] ?? 'New message';
 
-    const androidDetails = AndroidNotificationDetails(
-      'nexora_messages_channel',
-      'Nexora Messages',
-      channelDescription: 'New chat message notifications',
-      importance: Importance.high,
-      priority: Priority.high,
-      visibility: NotificationVisibility.public,
-      playSound: true,
-      enableVibration: true,
-    );
+      const androidDetails = AndroidNotificationDetails(
+        'nexora_messages_channel',
+        'Nexora Messages',
+        channelDescription: 'New chat message notifications',
+        importance: Importance.high,
+        priority: Priority.high,
+        visibility: NotificationVisibility.public,
+        playSound: true,
+        enableVibration: true,
+      );
 
-    const details = NotificationDetails(android: androidDetails);
-    final msgId = (data['message_id']?.hashCode ?? DateTime.now().millisecondsSinceEpoch) & 0x7FFFFFFF;
-    await fln.show(msgId, senderName, body, details, payload: jsonEncode(data));
+      const details = NotificationDetails(android: androidDetails);
+      final msgId = (data['message_id']?.hashCode ?? DateTime.now().millisecondsSinceEpoch) & 0x7FFFFFFF;
+      await fln.show(
+        id: msgId,
+        title: senderName,
+        body: body,
+        notificationDetails: details,
+        payload: jsonEncode(data),
+      );
+    }
   }
 }
 
@@ -142,6 +151,13 @@ class FCMService {
         provisional: false,
       );
 
+      // Disable OS heads-up in foreground since in-app WebSocket handles it
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: true,
+        sound: false,
+      );
+
       debugPrint('[FCM] Permission status: ${settings.authorizationStatus}');
 
       // 2. Setup Notification Channels for Android
@@ -157,7 +173,7 @@ class FCMService {
       const initSettings = InitializationSettings(android: androidInit, iOS: darwinInit);
 
       await _localNotifications.initialize(
-        initSettings,
+        settings: initSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
         onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
       );
@@ -246,7 +262,7 @@ class FCMService {
     final type = data['type'];
 
     if (type == 'CALL_CANCELLED') {
-      _localNotifications.cancel(8888);
+      _localNotifications.cancel(id: 8888);
       return;
     }
 
@@ -269,7 +285,7 @@ class FCMService {
   void _handleActionPayload(Map<String, dynamic> data, String? actionId) {
     final type = data['type'];
     if (type == 'CALL_INCOMING') {
-      _localNotifications.cancel(8888);
+      _localNotifications.cancel(id: 8888);
     }
 
     if (onNotificationAction != null) {

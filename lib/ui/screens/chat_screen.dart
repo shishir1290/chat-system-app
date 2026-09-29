@@ -3,20 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../models/call_model.dart';
-import '../../models/message_model.dart';
-import '../../models/room_model.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/call_provider.dart';
-import '../../providers/chat_provider.dart';
-import '../../providers/socket_provider.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../theme/app_theme.dart';
-import '../widgets/chat_background.dart';
-import '../widgets/custom_avatar.dart';
-import '../widgets/group_info_sheet.dart';
-import '../widgets/message_bubble.dart';
-import '../widgets/voice_record_bar.dart';
-import 'call_screen.dart';
+import '../widgets/widgets.dart';
+import 'screens.dart';
 
 class ChatScreen extends StatefulWidget {
   final ChatRoomModel room;
@@ -192,16 +183,114 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _joinOngoingCall({required bool isVideo}) async {
+    final call = context.read<CallProvider>();
+    await call.joinCall(
+      roomId: widget.room.id,
+      isVideo: isVideo,
+      roomName: widget.room.name,
+      roomAvatar: widget.room.avatar,
+    );
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CallScreen()),
+      );
+    }
+  }
+
+  Widget _buildOngoingCallBanner(BuildContext context, bool isVideo, int participantCount) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF059669),
+            Color(0xFF0F766E),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.success.withAlpha(70),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white24,
+            ),
+            child: Icon(
+              isVideo ? Icons.videocam_rounded : Icons.phone_in_talk_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isVideo ? 'Ongoing Group Video Call' : 'Ongoing Group Voice Call',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                  ),
+                ),
+                Text(
+                  participantCount > 0 ? '$participantCount participant(s) in call' : 'Tap to join',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF059669),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 0,
+            ),
+            onPressed: () => _joinOngoingCall(isVideo: isVideo),
+            child: const Text(
+              'Join',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = context.watch<ChatProvider>();
+    final currentRoom = chat.rooms.firstWhere(
+      (r) => r.id == widget.room.id,
+      orElse: () => chat.activeRoom ?? widget.room,
+    );
     final auth = context.watch<AuthProvider>();
     final socket = context.watch<SocketProvider>();
+    final call = context.watch<CallProvider>();
 
     final currentUserId = auth.user?.id ?? '';
-    final roomName = widget.room.getDisplayName(currentUserId);
-    final roomAvatar = widget.room.getDisplayAvatar(currentUserId);
-    final isOnline = widget.room.isOtherUserOnline(currentUserId, socket.onlineUserIds);
+    final roomName = currentRoom.getDisplayName(currentUserId);
+    final roomAvatar = currentRoom.getDisplayAvatar(currentUserId);
+    final isOnline = currentRoom.isOtherUserOnline(currentUserId, socket.onlineUserIds);
 
     final messages = chat.activeMessages;
     final typingUserIds = chat.getActiveTypingUsers();
@@ -217,13 +306,13 @@ class _ChatScreenState extends State<ChatScreen> {
               )
             : null,
         title: GestureDetector(
-          onTap: widget.room.isGroup
+          onTap: currentRoom.isGroup
               ? () {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (_) => GroupInfoSheet(room: widget.room),
+                    builder: (_) => GroupInfoSheet(room: currentRoom),
                   );
                 }
               : null,
@@ -234,8 +323,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 avatarUrl: roomAvatar,
                 size: 40,
                 isOnline: isOnline,
-                showOnlineBadge: !widget.room.isGroup,
-                isGroup: widget.room.isGroup,
+                showOnlineBadge: !currentRoom.isGroup,
+                isGroup: currentRoom.isGroup,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -249,8 +338,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      widget.room.isGroup
-                          ? '${widget.room.members.length} members'
+                      currentRoom.isGroup
+                          ? '${currentRoom.members.length} members'
                           : (isOnline ? 'Online' : 'Offline'),
                       style: TextStyle(
                         fontSize: 11.5,
@@ -273,7 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.videocam_rounded, color: AppColors.primaryLight, size: 24),
             onPressed: () => _startCall(CallType.video),
           ),
-          if (widget.room.isGroup)
+          if (currentRoom.isGroup)
             IconButton(
               icon: const Icon(Icons.info_outline_rounded, color: AppColors.textSecondary),
               onPressed: () {
@@ -281,7 +370,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (_) => GroupInfoSheet(room: widget.room),
+                  builder: (_) => GroupInfoSheet(room: currentRoom),
                 );
               },
             ),
@@ -290,8 +379,17 @@ class _ChatScreenState extends State<ChatScreen> {
       body: ChatBackground(
         child: Column(
           children: [
-          // Messages Feed
-          Expanded(
+            if (currentRoom.isGroup &&
+                chat.isGroupCallOngoing(currentRoom.id) &&
+                call.callStatus == CallStatus.idle)
+              _buildOngoingCallBanner(
+                context,
+                chat.getGroupCallStatus(currentRoom.id)?['is_video'] ??
+                    (chat.getActiveCallMessage(currentRoom.id)?.isVideoCall ?? true),
+                chat.getGroupCallStatus(currentRoom.id)?['participant_count'] ?? 0,
+              ),
+            // Messages Feed
+            Expanded(
             child: chat.isLoadingMessages
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                 : messages.isEmpty

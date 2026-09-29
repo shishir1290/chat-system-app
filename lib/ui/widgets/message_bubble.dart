@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants.dart';
-import '../../models/message_model.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/chat_provider.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
+import '../screens/screens.dart';
 import '../theme/app_theme.dart';
 import 'audio_wave_player.dart';
 import 'custom_avatar.dart';
@@ -870,6 +870,43 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (isLive) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      icon: Icon(
+                        isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isVideo ? 'Join Video Call' : 'Join Voice Call',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: () async {
+                        final call = context.read<CallProvider>();
+                        await call.joinCall(
+                          roomId: message.roomId,
+                          isVideo: isVideo,
+                          roomName: isGroup ? 'Group Call' : 'Call',
+                        );
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CallScreen()),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Row(
                   mainAxisSize: MainAxisSize.min,

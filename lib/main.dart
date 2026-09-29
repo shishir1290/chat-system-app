@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'providers/auth_provider.dart';
-import 'providers/call_provider.dart';
-import 'providers/chat_provider.dart';
-import 'providers/socket_provider.dart';
-import 'ui/screens/home_screen.dart';
-import 'ui/screens/landing_screen.dart';
-import 'ui/theme/app_theme.dart';
-
 import 'package:firebase_core/firebase_core.dart';
+
 import 'firebase_options.dart';
 import 'config/constants.dart';
-import 'services/api_service.dart';
-import 'services/fcm_service.dart';
-import 'models/call_model.dart';
-import 'ui/widgets/incoming_call_dialog.dart';
+import 'models/models.dart';
+import 'providers/providers.dart';
+import 'services/services.dart';
+import 'ui/screens/screens.dart';
+import 'ui/theme/app_theme.dart';
+import 'ui/widgets/widgets.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
