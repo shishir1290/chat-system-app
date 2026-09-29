@@ -79,6 +79,10 @@ class _NexoraAppState extends State<NexoraApp> {
               return Stack(
                 children: [
                   ?child,
+                  if (call.isCallMinimized &&
+                      (call.callStatus == CallStatus.connected ||
+                          call.callStatus == CallStatus.calling))
+                    const ActiveCallMiniBar(),
                   if (call.callStatus == CallStatus.incoming)
                     const IncomingCallDialog(),
                 ],

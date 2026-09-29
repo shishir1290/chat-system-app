@@ -6,3 +6,4 @@ export 'incoming_call_dialog.dart';
 export 'message_bubble.dart';
 export 'new_chat_dialog.dart';
 export 'voice_record_bar.dart';
+export 'active_call_mini_bar.dart';

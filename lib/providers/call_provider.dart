@@ -50,6 +50,8 @@ class CallProvider extends ChangeNotifier {
   StreamSubscription? _transferredSub;
   StreamSubscription? _answeredElsewhereSub;
 
+  bool _isCallMinimized = false;
+
   CallStatus get callStatus => _callStatus;
   CallType get callType => _callType;
   IncomingCallData? get incomingCall => _incomingCall;
@@ -59,6 +61,21 @@ class CallProvider extends ChangeNotifier {
   String? get targetUserAvatar => _targetUserAvatar;
   bool get isGroupCall => _isGroupCall;
   bool get isCaller => _isCaller;
+  bool get isCallMinimized => _isCallMinimized;
+  DateTime? get callConnectedTime => _callConnectedTime;
+  int get callDurationInSeconds => _callConnectedTime != null
+      ? DateTime.now().difference(_callConnectedTime!).inSeconds
+      : 0;
+
+  void minimizeCall() {
+    _isCallMinimized = true;
+    notifyListeners();
+  }
+
+  void expandCall() {
+    _isCallMinimized = false;
+    notifyListeners();
+  }
 
   RTCVideoRenderer get localRenderer => _webrtcService.localRenderer;
   Map<String, RTCVideoRenderer> get remoteRenderers => _webrtcService.remoteRenderers;
@@ -204,6 +221,7 @@ class CallProvider extends ChangeNotifier {
     _wasCallConnected = false;
     _currentCallMessage = null;
     _pendingIceCandidates.clear();
+    _isCallMinimized = false;
     LockScreenService.enableCallLockScreenMode();
     notifyListeners();
 
@@ -420,6 +438,7 @@ class CallProvider extends ChangeNotifier {
     _isGroupCall = incoming.isGroup;
     _callType = incoming.isVideo ? CallType.video : CallType.audio;
     _pendingIceCandidates.clear();
+    _isCallMinimized = false;
     notifyListeners();
 
     try {
@@ -573,6 +592,7 @@ class CallProvider extends ChangeNotifier {
       _incomingCall = null;
     }
     _callStatus = CallStatus.idle;
+    _isCallMinimized = false;
     LockScreenService.disableCallLockScreenMode();
     LockScreenService.exitLockScreenIfLocked();
     notifyListeners();
@@ -933,6 +953,7 @@ class CallProvider extends ChangeNotifier {
     _pendingOffer = null;
     _pendingOfferFromId = null;
     _pendingIceCandidates.clear();
+    _isCallMinimized = false;
     LockScreenService.disableCallLockScreenMode();
     LockScreenService.exitLockScreenIfLocked();
     notifyListeners();

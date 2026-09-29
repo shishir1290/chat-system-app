@@ -43,6 +43,22 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
+  Future<void> _handleMinimize(CallProvider call) async {
+    final isLocked = await LockScreenService.isKeyguardLocked();
+    if (isLocked) {
+      final unlocked = await LockScreenService.requestDismissKeyguard();
+      if (unlocked && mounted && Navigator.canPop(context)) {
+        call.minimizeCall();
+        Navigator.pop(context);
+      }
+    } else {
+      if (mounted && Navigator.canPop(context)) {
+        call.minimizeCall();
+        Navigator.pop(context);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final call = context.watch<CallProvider>();
@@ -62,20 +78,7 @@ class _CallScreenState extends State<CallScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final isLocked = await LockScreenService.isKeyguardLocked();
-        if (isLocked) {
-          final unlocked = await LockScreenService.requestDismissKeyguard();
-          if (unlocked && context.mounted && Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        } else {
-          if (context.mounted && Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        }
-      },
+      onPopInvokedWithResult: (didPop, result) => _handleMinimize(call),
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: Stack(
@@ -102,22 +105,11 @@ class _CallScreenState extends State<CallScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 28),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () async {
-                        final isLocked = await LockScreenService.isKeyguardLocked();
-                        if (isLocked) {
-                          final unlocked = await LockScreenService.requestDismissKeyguard();
-                          if (unlocked && context.mounted && Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          }
-                        } else {
-                          if (context.mounted && Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          }
-                        }
-                      },
+                      tooltip: 'Minimize call to chat',
+                      onPressed: () => _handleMinimize(call),
                     ),
                     const SizedBox(width: 8),
                     Icon(
