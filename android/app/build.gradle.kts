@@ -9,7 +9,7 @@ plugins {
 android {
     namespace = "com.nexora.chat.nexora_chat"
     compileSdk = 37
-    ndkVersion = "27.1.12297006"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
