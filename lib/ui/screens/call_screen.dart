@@ -4,6 +4,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
 
@@ -59,45 +60,80 @@ class _CallScreenState extends State<CallScreen> {
     final remoteRenderers = call.remoteRenderers;
     final isGroup = call.isGroupCall || remoteRenderers.length > 1;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          // Main Video / Voice Call Content
-          Positioned.fill(
-            child: isGroup
-                ? _buildGroupVideoLayout(call, remoteRenderers, isVideo)
-                : _buildSingleVideoLayout(call, remoteRenderers, isVideo),
-          ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final isLocked = await LockScreenService.isKeyguardLocked();
+        if (isLocked) {
+          final unlocked = await LockScreenService.requestDismissKeyguard();
+          if (unlocked && context.mounted && Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+        } else {
+          if (context.mounted && Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            // Main Video / Voice Call Content
+            Positioned.fill(
+              child: isGroup
+                  ? _buildGroupVideoLayout(call, remoteRenderers, isVideo)
+                  : _buildSingleVideoLayout(call, remoteRenderers, isVideo),
+            ),
 
-          // Top Info Bar
-          Positioned(
-            top: 44,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(140),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isVideo ? Icons.videocam_rounded : Icons.call_rounded,
-                    color: AppColors.primary,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      call.targetUserName ?? (isGroup ? 'Group Call' : 'Call'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.white,
-                      ),
+            // Top Info Bar
+            Positioned(
+              top: 44,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(140),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 24),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () async {
+                        final isLocked = await LockScreenService.isKeyguardLocked();
+                        if (isLocked) {
+                          final unlocked = await LockScreenService.requestDismissKeyguard();
+                          if (unlocked && context.mounted && Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          }
+                        } else {
+                          if (context.mounted && Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        call.targetUserName ?? (isGroup ? 'Group Call' : 'Call'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -233,6 +269,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

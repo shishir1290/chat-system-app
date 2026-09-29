@@ -5,3 +5,4 @@ export 'fcm_service.dart';
 export 'message_service.dart';
 export 'socket_service.dart';
 export 'webrtc_service.dart';
+export 'lock_screen_service.dart';

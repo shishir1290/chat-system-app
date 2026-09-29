@@ -204,6 +204,7 @@ class CallProvider extends ChangeNotifier {
     _wasCallConnected = false;
     _currentCallMessage = null;
     _pendingIceCandidates.clear();
+    LockScreenService.enableCallLockScreenMode();
     notifyListeners();
 
     final isVideo = type == CallType.video;
@@ -323,6 +324,7 @@ class CallProvider extends ChangeNotifier {
         _targetUserAvatar = _incomingCall!.callerAvatar;
         _isGroupCall = _incomingCall!.isGroup;
         _pendingIceCandidates.clear();
+        LockScreenService.enableCallLockScreenMode();
         debugPrint('📞 Incoming call from ${_incomingCall!.callerName} (${_incomingCall!.callerId}), has offer: ${_incomingCall!.offer != null}');
         notifyListeners();
       }
@@ -376,6 +378,7 @@ class CallProvider extends ChangeNotifier {
       _isGroupCall = isGroup;
       _isCaller = false;
       _pendingIceCandidates.clear();
+      LockScreenService.enableCallLockScreenMode();
       notifyListeners();
 
       if (autoAnswer) {
@@ -532,6 +535,7 @@ class CallProvider extends ChangeNotifier {
     _wasCallConnected = true;
     _currentCallMessage = null;
     _pendingIceCandidates.clear();
+    LockScreenService.enableCallLockScreenMode();
     notifyListeners();
 
     try {
@@ -569,6 +573,8 @@ class CallProvider extends ChangeNotifier {
       _incomingCall = null;
     }
     _callStatus = CallStatus.idle;
+    LockScreenService.disableCallLockScreenMode();
+    LockScreenService.exitLockScreenIfLocked();
     notifyListeners();
   }
 
@@ -927,6 +933,8 @@ class CallProvider extends ChangeNotifier {
     _pendingOffer = null;
     _pendingOfferFromId = null;
     _pendingIceCandidates.clear();
+    LockScreenService.disableCallLockScreenMode();
+    LockScreenService.exitLockScreenIfLocked();
     notifyListeners();
   }
 
